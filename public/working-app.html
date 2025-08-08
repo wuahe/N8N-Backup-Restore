@@ -98,6 +98,20 @@
                                         <option value="googledrive">Google Drive</option>
                                     </select>
                                 </div>
+                                <div class="form-group">
+                                    <label class="smart-toggle-label">
+                                        <input type="checkbox" id="smartSelectionToggle" checked>
+                                        <span class="toggle-slider"></span>
+                                        智能關聯選擇
+                                    </label>
+                                    <small class="form-help">
+                                        自動選中 workflow 相關的憑證
+                                        <br>
+                                        <span class="keyboard-shortcuts">
+                                            快捷鍵: Ctrl+S 切換 | Shift+Ctrl+A 全選 | Ctrl+D 清除
+                                        </span>
+                                    </small>
+                                </div>
                             </div>
 
                             <div class="items-selection">
@@ -140,8 +154,30 @@
                                 </div>
                             </div>
 
+                            <!-- 智能選擇摘要 -->
+                            <div class="selection-summary" id="selectionSummary" style="display: none;">
+                                <div class="summary-header">
+                                    <h4><i class="fas fa-magic"></i> 智能選擇摘要</h4>
+                                </div>
+                                <div class="summary-content">
+                                    <div class="summary-item">
+                                        <span class="summary-label">已選 Workflows:</span>
+                                        <span class="summary-value" id="selectedWorkflowsCount">0</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span class="summary-label">已選 Credentials:</span>
+                                        <span class="summary-value" id="selectedCredentialsCount">0</span>
+                                        <span class="auto-selected-count" id="autoSelectedCount">(0 個自動選中)</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span class="summary-label">總計:</span>
+                                        <span class="summary-value total" id="totalSelectedCount">0</span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="backup-actions">
-                                <button id="startBackupBtn" class="btn btn-primary btn-large">
+                                <button id="startBackupBtn" class="btn btn-primary btn-large" disabled>
                                     <i class="fas fa-upload"></i>
                                     開始備份
                                 </button>
@@ -245,6 +281,34 @@
             if (refreshDataBtn) {
                 refreshDataBtn.addEventListener('click', loadInitialData);
             }
+
+            // 全選/取消全選按鈕
+            const selectAllWorkflowsBtn = document.getElementById('selectAllWorkflows');
+            const deselectAllWorkflowsBtn = document.getElementById('deselectAllWorkflows');
+            const selectAllCredentialsBtn = document.getElementById('selectAllCredentials');
+            const deselectAllCredentialsBtn = document.getElementById('deselectAllCredentials');
+
+            if (selectAllWorkflowsBtn) {
+                selectAllWorkflowsBtn.addEventListener('click', () => selectAllWorkflows(true));
+            }
+            if (deselectAllWorkflowsBtn) {
+                deselectAllWorkflowsBtn.addEventListener('click', () => selectAllWorkflows(false));
+            }
+            if (selectAllCredentialsBtn) {
+                selectAllCredentialsBtn.addEventListener('click', () => selectAllCredentials(true));
+            }
+            if (deselectAllCredentialsBtn) {
+                deselectAllCredentialsBtn.addEventListener('click', () => selectAllCredentials(false));
+            }
+
+            // 智能關聯開關事件
+            const smartToggle = document.getElementById('smartSelectionToggle');
+            if (smartToggle) {
+                smartToggle.addEventListener('change', handleSmartToggleChange);
+            }
+
+            // 鍵盤快捷鍵
+            document.addEventListener('keydown', handleKeyboardShortcuts);
         });
         
         // 檢查登入狀態
@@ -390,23 +454,49 @@
                 return;
             }
             
-            container.innerHTML = workflows.map(workflow => `
-                <div class="item-checkbox">
-                    <input type="checkbox" id="workflow-${workflow.id}" value="${workflow.id}" data-type="workflow"
-                           data-related-credentials="${(workflow.relatedCredentialIds || []).join(',')}"
-                           onchange="handleWorkflowSelection(this)">
-                    <div class="item-info">
-                        <div class="item-name">${workflow.name}</div>
-                        <div class="item-details">
-                            <span class="item-status ${workflow.active ? 'status-active' : 'status-inactive'}">
-                                <i class="fas ${workflow.active ? 'fa-play' : 'fa-pause'}"></i>
-                                ${workflow.active ? '啟用' : '停用'}
-                            </span>
-                            <span>相關憑證: ${workflow.relatedCredentials ? workflow.relatedCredentials.length : 0}</span>
+            container.innerHTML = workflows.map(workflow => {
+                const relatedCredentialIds = workflow.relatedCredentialIds || [];
+                const relatedCount = relatedCredentialIds.length;
+                
+                // 獲取相關憑證的名稱用於提示
+                const relatedCredentialNames = relatedCredentialIds
+                    .map(id => {
+                        const credential = credentials.find(c => c.id === id);
+                        return credential ? credential.name : `ID: ${id}`;
+                    })
+                    .join(', ');
+                
+                const tooltipText = relatedCount > 0 
+                    ? `選中此 workflow 將自動選中以下憑證：\n${relatedCredentialNames}`
+                    : '此 workflow 不使用任何憑證';
+                
+                return `
+                    <div class="item-checkbox workflow-item" id="workflow-item-${workflow.id}"
+                         onmouseenter="highlightRelatedCredentials('${workflow.id}', true)"
+                         onmouseleave="highlightRelatedCredentials('${workflow.id}', false)">
+                        <input type="checkbox" id="workflow-${workflow.id}" value="${workflow.id}" data-type="workflow"
+                               data-related-credentials="${relatedCredentialIds.join(',')}"
+                               onchange="handleWorkflowSelection(this)">
+                        <div class="item-info">
+                            <div class="item-name">
+                                ${workflow.name}
+                                ${relatedCount > 0 ? `<span class="related-indicator" title="${tooltipText}">🔗${relatedCount}</span>` : ''}
+                            </div>
+                            <div class="item-details">
+                                <span class="item-status ${workflow.active ? 'status-active' : 'status-inactive'}">
+                                    <i class="fas ${workflow.active ? 'fa-play' : 'fa-pause'}"></i>
+                                    ${workflow.active ? '啟用' : '停用'}
+                                </span>
+                                ${workflow.tags ? workflow.tags.map(tag => `<span class="item-tag">${tag}</span>`).join('') : ''}
+                                <span class="related-credentials-info">相關憑證: ${relatedCount}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
+            
+            // 初始化後更新計數
+            updateSelectionCounts();
         }
         
         // 渲染 credentials 列表
@@ -440,25 +530,60 @@
         function handleWorkflowSelection(workflowCheckbox) {
             const isChecked = workflowCheckbox.checked;
             const relatedCredentialIds = workflowCheckbox.dataset.relatedCredentials;
-            if (!relatedCredentialIds) return;
+            
+            // 檢查智能關聯開關是否啟用
+            const smartToggle = document.getElementById('smartSelectionToggle');
+            const smartSelectionEnabled = smartToggle ? smartToggle.checked : true;
+            
+            if (!relatedCredentialIds || !smartSelectionEnabled) {
+                updateSelectionCounts();
+                return;
+            }
 
             const credentialIds = relatedCredentialIds.split(',').filter(id => id.trim());
+            
             credentialIds.forEach(credentialId => {
                 const credentialCheckbox = document.getElementById(`credential-${credentialId}`);
                 const credentialItem = document.getElementById(`credential-item-${credentialId}`);
+                
                 if (!credentialCheckbox) return;
 
                 if (isChecked) {
+                    // 勾選 workflow 時，自動勾選相關的 credentials
                     credentialCheckbox.checked = true;
-                    if (credentialItem) credentialItem.classList.add('auto-selected');
+                    if (credentialItem) {
+                        credentialItem.classList.add('auto-selected');
+                        // 添加視覺提示動畫
+                        credentialItem.style.animation = 'highlightAutoSelect 0.5s ease';
+                        setTimeout(() => {
+                            credentialItem.style.animation = '';
+                        }, 500);
+                    }
                 } else {
+                    // 取消勾選 workflow 時，檢查是否還有其他 workflow 使用這個 credential
                     const stillNeeded = isCredentialStillNeeded(credentialId);
                     if (!stillNeeded) {
                         credentialCheckbox.checked = false;
-                        if (credentialItem) credentialItem.classList.remove('auto-selected');
+                        if (credentialItem) {
+                            credentialItem.classList.remove('auto-selected');
+                            // 添加取消選中的動畫
+                            credentialItem.style.animation = 'highlightAutoDeselect 0.5s ease';
+                            setTimeout(() => {
+                                credentialItem.style.animation = '';
+                            }, 500);
+                        }
                     }
                 }
             });
+            
+            // 顯示提示信息（只在有實際操作時顯示）
+            if (credentialIds.length > 0) {
+                const action = isChecked ? '選中' : '取消選中';
+                showSmartSelectionNotification(`已自動${action}相關憑證`, 'info');
+            }
+            
+            // 更新選中計數
+            updateSelectionCounts();
         }
 
         // 判斷某 credential 是否仍被其他已選 workflow 需要
@@ -469,6 +594,163 @@
                 if (ids.includes(credentialId)) return true;
             }
             return false;
+        }
+
+        // 更新選中項目計數
+        function updateSelectionCounts() {
+            const selectedWorkflows = document.querySelectorAll('input[data-type="workflow"]:checked').length;
+            const selectedCredentials = document.querySelectorAll('input[data-type="credential"]:checked').length;
+            const autoSelectedCredentials = document.querySelectorAll('.item-checkbox.auto-selected input:checked').length;
+            
+            // 更新摘要面板
+            const summaryPanel = document.getElementById('selectionSummary');
+            const selectedWorkflowsCountEl = document.getElementById('selectedWorkflowsCount');
+            const selectedCredentialsCountEl = document.getElementById('selectedCredentialsCount');
+            const autoSelectedCountEl = document.getElementById('autoSelectedCount');
+            const totalSelectedCountEl = document.getElementById('totalSelectedCount');
+            
+            if (summaryPanel && selectedWorkflowsCountEl && selectedCredentialsCountEl && autoSelectedCountEl && totalSelectedCountEl) {
+                const totalSelected = selectedWorkflows + selectedCredentials;
+                
+                if (totalSelected > 0) {
+                    summaryPanel.style.display = 'block';
+                    selectedWorkflowsCountEl.textContent = selectedWorkflows;
+                    selectedCredentialsCountEl.textContent = selectedCredentials;
+                    autoSelectedCountEl.textContent = `(${autoSelectedCredentials} 個自動選中)`;
+                    totalSelectedCountEl.textContent = totalSelected;
+                } else {
+                    summaryPanel.style.display = 'none';
+                }
+            }
+            
+            // 更新按鈕文字顯示選中數量
+            const backupBtn = document.getElementById('startBackupBtn');
+            if (backupBtn) {
+                const totalSelected = selectedWorkflows + selectedCredentials;
+                if (totalSelected > 0) {
+                    backupBtn.innerHTML = `<i class="fas fa-upload"></i> 開始備份 (${selectedWorkflows} 個 Workflows, ${selectedCredentials} 個 Credentials)`;
+                    backupBtn.disabled = false;
+                    backupBtn.classList.add('ready');
+                } else {
+                    backupBtn.innerHTML = `<i class="fas fa-upload"></i> 開始備份`;
+                    backupBtn.disabled = true;
+                    backupBtn.classList.remove('ready');
+                }
+            }
+        }
+
+        // 顯示智能選擇通知（不干擾用戶的輕量提示）
+        function showSmartSelectionNotification(message, type = 'info') {
+            // 創建一個輕量級的提示，不會像普通通知那樣持續顯示
+            const notification = document.createElement('div');
+            notification.className = `smart-notification ${type}`;
+            notification.textContent = message;
+            
+            const container = document.getElementById('notifications');
+            if (container) {
+                container.appendChild(notification);
+                
+                // 更短的顯示時間，不干擾用戶
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 200);
+                }, 1500);
+            }
+        }
+
+        // 高亮相關憑證
+        function highlightRelatedCredentials(workflowId, highlight) {
+            const workflowCheckbox = document.getElementById(`workflow-${workflowId}`);
+            if (!workflowCheckbox) return;
+            
+            const relatedCredentialIds = workflowCheckbox.dataset.relatedCredentials;
+            if (!relatedCredentialIds) return;
+            
+            const credentialIds = relatedCredentialIds.split(',').filter(id => id.trim());
+            
+            credentialIds.forEach(credentialId => {
+                const credentialItem = document.getElementById(`credential-item-${credentialId}`);
+                if (credentialItem) {
+                    if (highlight) {
+                        credentialItem.classList.add('related-highlight');
+                    } else {
+                        credentialItem.classList.remove('related-highlight');
+                    }
+                }
+            });
+        }
+
+        // 全選/取消全選功能增強
+        function selectAllWorkflows(select) {
+            const checkboxes = document.querySelectorAll('input[data-type="workflow"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = select;
+                handleWorkflowSelection(checkbox);
+            });
+        }
+
+        function selectAllCredentials(select) {
+            const checkboxes = document.querySelectorAll('input[data-type="credential"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = select;
+                // 移除自動選中標記，因為這是手動全選
+                const credentialItem = document.getElementById(`credential-item-${checkbox.value}`);
+                if (credentialItem && !select) {
+                    credentialItem.classList.remove('auto-selected');
+                }
+            });
+            updateSelectionCounts();
+        }
+
+        // 處理智能關聯開關變化
+        function handleSmartToggleChange() {
+            const smartToggle = document.getElementById('smartSelectionToggle');
+            const isEnabled = smartToggle.checked;
+            
+            if (!isEnabled) {
+                // 關閉智能關聯時，清除所有自動選中標記
+                document.querySelectorAll('.item-checkbox.auto-selected').forEach(item => {
+                    item.classList.remove('auto-selected');
+                });
+                showSmartSelectionNotification('智能關聯已關閉', 'info');
+            } else {
+                // 開啟智能關聯時，重新應用智能選擇
+                const selectedWorkflows = document.querySelectorAll('input[data-type="workflow"]:checked');
+                selectedWorkflows.forEach(workflowCheckbox => {
+                    handleWorkflowSelection(workflowCheckbox);
+                });
+                showSmartSelectionNotification('智能關聯已開啟', 'info');
+            }
+            
+            updateSelectionCounts();
+        }
+
+        // 鍵盤快捷鍵處理
+        function handleKeyboardShortcuts(e) {
+            // Ctrl/Cmd + S: 切換智能關聯
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                const smartToggle = document.getElementById('smartSelectionToggle');
+                if (smartToggle) {
+                    smartToggle.checked = !smartToggle.checked;
+                    handleSmartToggleChange();
+                }
+            }
+            
+            // Ctrl/Cmd + A: 全選 workflows
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a' && e.shiftKey) {
+                e.preventDefault();
+                selectAllWorkflows(true);
+            }
+            
+            // Ctrl/Cmd + D: 取消全選
+            if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+                e.preventDefault();
+                selectAllWorkflows(false);
+                selectAllCredentials(false);
+            }
         }
         
         // 切換標籤頁

@@ -42,6 +42,11 @@ app.get('/test-smart-selection.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'test-smart-selection.html'));
 });
 
+// Serve smart selection demo
+app.get('/smart-selection-demo.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'smart-selection-demo.html'));
+});
+
 // Handle common typos for auto-login
 app.get('/auto-login.htm', (req, res) => {
   res.redirect('/auto-login.html');
