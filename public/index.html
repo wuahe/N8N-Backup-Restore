@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N8N Backup & Restore Tool</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- 登入頁面 -->
+        <div id="loginPage" class="page">
+            <div class="login-container">
+                <div class="login-form">
+                    <h2><i class="fas fa-shield-alt"></i> N8N Backup & Restore</h2>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username">用戶名</label>
+                            <input type="text" id="username" name="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">密碼</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt"></i> 登入
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主頁面 -->
+        <div id="mainPage" class="page hidden">
+            <!-- 頂部導航 -->
+            <nav class="navbar">
+                <div class="nav-brand">
+                    <i class="fas fa-database"></i>
+                    N8N Backup & Restore
+                </div>
+                <div class="nav-actions">
+                    <span class="user-info">
+                        <i class="fas fa-user"></i>
+                        <span id="currentUser"></span>
+                    </span>
+                    <button id="logoutBtn" class="btn btn-outline">
+                        <i class="fas fa-sign-out-alt"></i> 登出
+                    </button>
+                </div>
+            </nav>
+
+            <!-- 主要內容 -->
+            <div class="main-content">
+                <!-- 側邊欄 -->
+                <aside class="sidebar">
+                    <div class="sidebar-menu">
+                        <button class="menu-item active" data-tab="backup">
+                            <i class="fas fa-upload"></i>
+                            <span>備份</span>
+                        </button>
+                        <button class="menu-item" data-tab="restore">
+                            <i class="fas fa-download"></i>
+                            <span>還原</span>
+                        </button>
+                        <button class="menu-item" data-tab="history">
+                            <i class="fas fa-history"></i>
+                            <span>備份歷史</span>
+                        </button>
+                        <button class="menu-item" data-tab="cross-env">
+                            <i class="fas fa-exchange-alt"></i>
+                            <span>跨環境</span>
+                        </button>
+                    </div>
+                </aside>
+
+                <!-- 內容區域 -->
+                <main class="content">
+                    <!-- 備份頁面 -->
+                    <div id="backupTab" class="tab-content active">
+                        <div class="content-header">
+                            <h2><i class="fas fa-upload"></i> 備份 Workflows 和 Credentials</h2>
+                            <button id="refreshDataBtn" class="btn btn-outline">
+                                <i class="fas fa-sync-alt"></i> 重新整理
+                            </button>
+                        </div>
+
+                        <div class="backup-container">
+                            <!-- 備份設定 -->
+                            <div class="backup-settings">
+                                <div class="form-group">
+                                    <label for="backupN8nSource">N8N 來源環境</label>
+                                    <select id="backupN8nSource">
+                                        <option value="default">本地 N8N (localhost:5678)</option>
+                                        <option value="env_a">Zeabur N8N</option>
+                                        <option value="env_b">HuggingFace N8N</option>
+                                        <option value="env_c">Staging N8N</option>
+                                    </select>
+                                    <div class="env-status" id="backupN8nStatus"></div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="backupName">備份名稱</label>
+                                    <input type="text" id="backupName" placeholder="輸入備份名稱（可選）">
+                                </div>
+                                <div class="form-group">
+                                    <label for="backupDestination">備份目標</label>
+                                    <select id="backupDestination">
+                                        <option value="github">GitHub</option>
+                                        <option value="googledrive">Google Drive</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 項目選擇 -->
+                            <div class="items-selection">
+                                <div class="selection-section">
+                                    <div class="section-header">
+                                        <h3>
+                                            <i class="fas fa-project-diagram"></i>
+                                            Workflows
+                                            <span class="item-count" id="workflowCount">0</span>
+                                        </h3>
+                                        <div class="selection-controls">
+                                            <button class="btn btn-sm" id="selectAllWorkflows">全選</button>
+                                            <button class="btn btn-sm" id="deselectAllWorkflows">取消全選</button>
+                                        </div>
+                                    </div>
+                                    <div class="items-list" id="workflowsList">
+                                        <!-- Workflows 列表將在這裡動態生成 -->
+                                    </div>
+                                </div>
+
+                                <div class="selection-section">
+                                    <div class="section-header">
+                                        <h3>
+                                            <i class="fas fa-key"></i>
+                                            Credentials
+                                            <span class="item-count" id="credentialCount">0</span>
+                                        </h3>
+                                        <div class="selection-controls">
+                                            <button class="btn btn-sm" id="selectAllCredentials">全選</button>
+                                            <button class="btn btn-sm" id="deselectAllCredentials">取消全選</button>
+                                        </div>
+                                    </div>
+                                    <div class="items-list" id="credentialsList">
+                                        <!-- Credentials 列表將在這裡動態生成 -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 備份按鈕 -->
+                            <div class="backup-actions">
+                                <button id="startBackupBtn" class="btn btn-primary btn-large">
+                                    <i class="fas fa-upload"></i>
+                                    開始備份
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 還原頁面 -->
+                    <div id="restoreTab" class="tab-content">
+                        <div class="content-header">
+                            <h2><i class="fas fa-download"></i> 還原 Workflows 和 Credentials</h2>
+                            <button id="refreshBackupsBtn" class="btn btn-outline">
+                                <i class="fas fa-sync-alt"></i> 重新整理備份列表
+                            </button>
+                        </div>
+
+                        <div class="restore-container">
+                            <!-- 還原設定 -->
+                            <div class="restore-settings">
+                                <div class="form-group">
+                                    <label for="restoreN8nTarget">N8N 目標環境</label>
+                                    <select id="restoreN8nTarget">
+                                        <option value="default">本地 N8N (localhost:5678)</option>
+                                        <option value="env_a">Zeabur N8N</option>
+                                        <option value="env_b">HuggingFace N8N</option>
+                                        <option value="env_c">Staging N8N</option>
+                                    </select>
+                                    <div class="env-status" id="restoreN8nStatus"></div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="restoreSource">備份來源</label>
+                                    <select id="restoreSource">
+                                        <option value="github">GitHub</option>
+                                        <option value="googledrive">Google Drive</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 備份列表 -->
+                            <div class="backups-list">
+                                <h3>可用的備份</h3>
+                                <div id="availableBackups">
+                                    <!-- 備份列表將在這裡動態生成 -->
+                                </div>
+                            </div>
+
+                            <!-- 還原選項 -->
+                            <div id="restoreOptions" class="restore-options hidden">
+                                <h3>還原選項</h3>
+                                <div class="form-group">
+                                    <label for="restoreMode">衝突處理</label>
+                                    <select id="restoreMode">
+                                        <option value="skip">跳過已存在的項目</option>
+                                        <option value="overwrite">覆蓋已存在的項目</option>
+                                    </select>
+                                </div>
+
+                                <!-- 項目選擇 -->
+                                <div id="restoreItemsSelection" class="items-selection">
+                                    <!-- 還原項目選擇將在這裡動態生成 -->
+                                </div>
+
+                                <div class="restore-actions">
+                                    <button id="startRestoreBtn" class="btn btn-primary btn-large">
+                                        <i class="fas fa-download"></i>
+                                        開始還原
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 備份歷史頁面 -->
+                    <div id="historyTab" class="tab-content">
+                        <div class="content-header">
+                            <h2><i class="fas fa-history"></i> 備份歷史</h2>
+                        </div>
+                        <div class="history-container">
+                            <div class="history-filters">
+                                <select id="historySource">
+                                    <option value="all">所有來源</option>
+                                    <option value="github">GitHub</option>
+                                    <option value="googledrive">Google Drive</option>
+                                </select>
+                            </div>
+                            <div id="historyList" class="history-list">
+                                <!-- 歷史記錄將在這裡顯示 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 跨環境頁面 -->
+                    <div id="cross-envTab" class="tab-content">
+                        <div class="content-header">
+                            <h2><i class="fas fa-exchange-alt"></i> 跨環境備份還原</h2>
+                            <button id="refreshEnvironmentsBtn" class="btn btn-outline">
+                                <i class="fas fa-sync-alt"></i> 重新整理環境
+                            </button>
+                        </div>
+
+                        <div class="cross-env-container">
+                            <!-- 環境選擇 -->
+                            <div class="env-selection">
+                                <div class="env-section">
+                                    <h3><i class="fas fa-server"></i> 來源環境 (備份從)</h3>
+                                    <select id="sourceEnvironment">
+                                        <option value="">選擇來源環境...</option>
+                                    </select>
+                                    <div class="env-status" id="sourceEnvStatus"></div>
+                                </div>
+                                
+                                <div class="env-arrow">
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                                
+                                <div class="env-section">
+                                    <h3><i class="fas fa-cloud"></i> 儲存位置</h3>
+                                    <select id="crossEnvDestination">
+                                        <option value="github">GitHub</option>
+                                        <option value="googledrive">Google Drive</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="env-arrow">
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                                
+                                <div class="env-section">
+                                    <h3><i class="fas fa-server"></i> 目標環境 (還原到)</h3>
+                                    <select id="targetEnvironment">
+                                        <option value="">選擇目標環境...</option>
+                                    </select>
+                                    <div class="env-status" id="targetEnvStatus"></div>
+                                </div>
+                            </div>
+
+                            <!-- 操作模式選擇 -->
+                            <div class="operation-mode">
+                                <h3>操作模式</h3>
+                                <div class="mode-options">
+                                    <label class="mode-option">
+                                        <input type="radio" name="operationMode" value="backup" checked>
+                                        <span>只備份 (從來源環境備份到雲端)</span>
+                                    </label>
+                                    <label class="mode-option">
+                                        <input type="radio" name="operationMode" value="restore">
+                                        <span>只還原 (從雲端還原到目標環境)</span>
+                                    </label>
+                                    <label class="mode-option">
+                                        <input type="radio" name="operationMode" value="migrate">
+                                        <span>完整遷移 (備份 + 還原)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- 項目選擇區域 -->
+                            <div id="crossEnvItemsSelection" class="items-selection hidden">
+                                <!-- 動態生成的項目選擇 -->
+                            </div>
+
+                            <!-- 操作按鈕 -->
+                            <div class="cross-env-actions">
+                                <button id="loadSourceDataBtn" class="btn btn-outline">
+                                    <i class="fas fa-download"></i> 載入來源數據
+                                </button>
+                                <button id="startCrossEnvOperationBtn" class="btn btn-primary btn-large hidden">
+                                    <i class="fas fa-exchange-alt"></i> 開始操作
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- 載入中覆蓋層 -->
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p id="loadingText">處理中...</p>
+            </div>
+        </div>
+
+        <!-- 通知容器 -->
+        <div id="notifications" class="notifications"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

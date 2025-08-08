@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>修復登入 - N8N Backup & Restore</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .fix-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+        }
+        .correct-info {
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            color: #2e7d32;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .wrong-info {
+            background: #ffebee;
+            border: 1px solid #f44336;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .credentials {
+            font-family: monospace;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .btn {
+            background: #ff6d5a;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background: #e55a47;
+        }
+        .auto-login-form {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="fix-container">
+        <h2>🔧 登入問題修復</h2>
+        
+        <div class="wrong-info">
+            <h3>❌ 你輸入的密碼不正確</h3>
+            <div class="credentials">
+                用戶名: albouwu@gmail.com ✅<br>
+                密碼: FI@600828 ❌
+            </div>
+        </div>
+        
+        <div class="correct-info">
+            <h3>✅ 正確的登入信息</h3>
+            <div class="credentials">
+                用戶名: albouwu@gmail.com<br>
+                密碼: password
+            </div>
+        </div>
+        
+        <div class="auto-login-form">
+            <h3>🚀 一鍵自動登入</h3>
+            <p>點擊下面的按鈕，系統會自動使用正確的密碼登入</p>
+            <button class="btn" onclick="autoLogin()">自動登入並進入主應用</button>
+        </div>
+        
+        <div>
+            <a href="/" class="btn">返回登入頁面</a>
+            <a href="/debug-login.html" class="btn">打開調試工具</a>
+        </div>
+        
+        <div id="status" style="margin-top: 20px; padding: 10px; border-radius: 4px; display: none;"></div>
+    </div>
+
+    <script>
+        async function autoLogin() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#fff3e0';
+            statusDiv.style.color = '#f57c00';
+            statusDiv.textContent = '正在自動登入...';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'albouwu@gmail.com',
+                        password: 'password'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 保存 token 到 localStorage
+                    localStorage.setItem('authToken', result.token);
+                    localStorage.setItem('currentUser', JSON.stringify(result.user));
+                    
+                    statusDiv.style.background = '#e8f5e8';
+                    statusDiv.style.color = '#2e7d32';
+                    statusDiv.textContent = '✅ 登入成功！正在跳轉到主應用...';
+                    
+                    // 跳轉到主頁面
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                } else {
+                    statusDiv.style.background = '#ffebee';
+                    statusDiv.style.color = '#c62828';
+                    statusDiv.textContent = '❌ 登入失敗: ' + (result.error || '未知錯誤');
+                }
+            } catch (error) {
+                statusDiv.style.background = '#ffebee';
+                statusDiv.style.color = '#c62828';
+                statusDiv.textContent = '❌ 連接錯誤: ' + error.message;
+            }
+        }
+        
+        // 頁面載入時檢查是否已經有正確的登入狀態
+        window.onload = function() {
+            const savedToken = localStorage.getItem('authToken');
+            const savedUser = localStorage.getItem('currentUser');
+            
+            if (savedToken && savedUser) {
+                const user = JSON.parse(savedUser);
+                const statusDiv = document.getElementById('status');
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#e3f2fd';
+                statusDiv.style.color = '#1976d2';
+                statusDiv.textContent = `ℹ️ 檢測到已登入用戶: ${user.username}`;
+            }
+        };
+    </script>
+</body>
+</html>

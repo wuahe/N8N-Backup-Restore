@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>測試頁面</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>N8N 備份還原工具 - 測試頁面</h1>
+    
+    <h2>登入測試</h2>
+    <button onclick="testLogin()">測試登入</button>
+    
+    <h2>結果</h2>
+    <div id="result"></div>
+    
+    <script>
+        function testLogin() {
+            document.getElementById('result').innerHTML = '正在測試登入...';
+            
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: 'albouwu@gmail.com',
+                    password: 'FI@600828'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    localStorage.setItem('authToken', data.token);
+                    localStorage.setItem('currentUser', JSON.stringify(data.user));
+                    
+                    document.getElementById('result').innerHTML = 
+                        '<div style="color: green;">✅ 登入成功！<br>' +
+                        '用戶: ' + data.user.username + '<br>' +
+                        'Token: ' + data.token.substring(0, 50) + '...<br>' +
+                        '<button onclick="goToApp()">進入主應用</button></div>';
+                } else {
+                    document.getElementById('result').innerHTML = 
+                        '<div style="color: red;">❌ 登入失敗: ' + data.error + '</div>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML = 
+                    '<div style="color: red;">❌ 錯誤: ' + error.message + '</div>';
+            });
+        }
+        
+        function goToApp() {
+            window.location.href = '/working-app.html';
+        }
+        
+        // 檢查是否已經登入
+        window.onload = function() {
+            const token = localStorage.getItem('authToken');
+            const user = localStorage.getItem('currentUser');
+            
+            if (token && user) {
+                const userData = JSON.parse(user);
+                document.getElementById('result').innerHTML = 
+                    '<div style="color: blue;">ℹ️ 已檢測到登入狀態<br>' +
+                    '用戶: ' + userData.username + '<br>' +
+                    '<button onclick="goToApp()">進入主應用</button><br>' +
+                    '<button onclick="clearLogin()">清除登入狀態</button></div>';
+            }
+        };
+        
+        function clearLogin() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            document.getElementById('result').innerHTML = '登入狀態已清除';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N8N Backup & Restore</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80vh;
+        }
+        
+        .login-form {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #ff6d5a;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #e55a47;
+        }
+        
+        .message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .success {
+            background: #e8f5e8;
+            color: #4caf50;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #f44336;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .main-app {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+        
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .logout-btn {
+            width: auto;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loginContainer" class="login-container">
+        <div class="login-form">
+            <h1>🔐 N8N Backup & Restore</h1>
+            
+            <div class="form-group">
+                <label>用戶名</label>
+                <input type="text" id="username" value="albouwu@gmail.com">
+            </div>
+            
+            <div class="form-group">
+                <label>密碼</label>
+                <input type="password" id="password" value="FI@600828">
+            </div>
+            
+            <button onclick="performLogin()">登入</button>
+            
+            <div id="loginMessage" class="message hidden"></div>
+        </div>
+    </div>
+    
+    <div id="mainApp" class="main-app hidden">
+        <div class="navbar">
+            <h2>🎉 N8N Backup & Restore Tool</h2>
+            <div>
+                <span>歡迎, <strong id="userDisplay"></strong>!</span>
+                <button class="logout-btn" onclick="performLogout()">登出</button>
+            </div>
+        </div>
+        
+        <div class="success">
+            ✅ 恭喜！你已成功登入 N8N 備份還原工具。
+        </div>
+        
+        <h3>📋 可用功能</h3>
+        <ul>
+            <li>✅ 用戶認證系統</li>
+            <li>📋 Workflows 管理</li>
+            <li>🔑 Credentials 管理</li>
+            <li>☁️ 雲端備份 (GitHub/Google Drive)</li>
+            <li>🌐 跨環境遷移</li>
+        </ul>
+        
+        <div style="margin: 20px 0;">
+            <button onclick="testConnection()" style="margin: 5px;">測試 API 連接</button>
+            <button onclick="loadN8NData()" style="margin: 5px;">載入 N8N 數據</button>
+        </div>
+        
+        <div id="dataDisplay" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        console.log('頁面載入完成');
+        
+        // 全局變量
+        var authToken = null;
+        var currentUser = null;
+        
+        // 頁面載入時檢查登入狀態
+        window.onload = function() {
+            console.log('檢查登入狀態...');
+            
+            var savedToken = localStorage.getItem('authToken');
+            var savedUser = localStorage.getItem('currentUser');
+            
+            if (savedToken && savedUser) {
+                console.log('找到保存的登入信息');
+                authToken = savedToken;
+                currentUser = JSON.parse(savedUser);
+                showMainApp();
+            } else {
+                console.log('沒有登入信息，顯示登入頁面');
+                showLoginForm();
+            }
+        };
+        
+        // 顯示登入表單
+        function showLoginForm() {
+            document.getElementById('loginContainer').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('hidden');
+        }
+        
+        // 顯示主應用
+        function showMainApp() {
+            document.getElementById('loginContainer').classList.add('hidden');
+            document.getElementById('mainApp').classList.remove('hidden');
+            
+            if (currentUser) {
+                document.getElementById('userDisplay').textContent = currentUser.username;
+            }
+        }
+        
+        // 顯示消息
+        function showMessage(message, type) {
+            var messageDiv = document.getElementById('loginMessage');
+            messageDiv.textContent = message;
+            messageDiv.className = 'message ' + type;
+            messageDiv.classList.remove('hidden');
+        }
+        
+        // 執行登入
+        function performLogin() {
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showMessage('請輸入用戶名和密碼', 'error');
+                return;
+            }
+            
+            console.log('開始登入...');
+            showMessage('正在登入...', 'info');
+            
+            // 使用 fetch API 進行登入
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            })
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(result) {
+                console.log('登入結果:', result);
+                
+                if (result.success) {
+                    authToken = result.token;
+                    currentUser = result.user;
+                    
+                    // 保存到 localStorage
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    
+                    showMessage('登入成功！正在跳轉...', 'success');
+                    
+                    setTimeout(function() {
+                        showMainApp();
+                    }, 1000);
+                } else {
+                    showMessage('登入失敗: ' + (result.error || '未知錯誤'), 'error');
+                }
+            })
+            .catch(function(error) {
+                console.error('登入錯誤:', error);
+                showMessage('連接錯誤: ' + error.message, 'error');
+            });
+        }
+        
+        // 執行登出
+        function performLogout() {
+            console.log('執行登出...');
+            
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            
+            showLoginForm();
+        }
+        
+        // 測試連接
+        function testConnection() {
+            if (!authToken) {
+                alert('請先登入');
+                return;
+            }
+            
+            console.log('測試 API 連接...');
+            
+            fetch('/api/auth/verify', {
+                headers: {
+                    'Authorization': 'Bearer ' + authToken
+                }
+            })
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(result) {
+                if (result.success) {
+                    alert('✅ API 連接正常');
+                } else {
+                    alert('❌ API 連接失敗: ' + (result.error || '未知錯誤'));
+                }
+            })
+            .catch(function(error) {
+                alert('❌ 連接錯誤: ' + error.message);
+            });
+        }
+        
+        // 載入 N8N 數據
+        function loadN8NData() {
+            if (!authToken) {
+                alert('請先登入');
+                return;
+            }
+            
+            console.log('載入 N8N 數據...');
+            
+            Promise.all([
+                fetch('/api/n8n/workflows', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                }),
+                fetch('/api/n8n/credentials', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                })
+            ])
+            .then(function(responses) {
+                return Promise.all([
+                    responses[0].json(),
+                    responses[1].json()
+                ]);
+            })
+            .then(function(data) {
+                var workflows = data[0];
+                var credentials = data[1];
+                
+                var displayDiv = document.getElementById('dataDisplay');
+                displayDiv.innerHTML = 
+                    '<div class="success">' +
+                    '✅ 數據載入成功！<br>' +
+                    'Workflows: ' + workflows.length + ' 個<br>' +
+                    'Credentials: ' + credentials.length + ' 個' +
+                    '</div>';
+                
+                console.log('Workflows:', workflows);
+                console.log('Credentials:', credentials);
+            })
+            .catch(function(error) {
+                console.error('載入數據錯誤:', error);
+                
+                var displayDiv = document.getElementById('dataDisplay');
+                displayDiv.innerHTML = 
+                    '<div class="error">❌ 載入數據失敗: ' + error.message + '</div>';
+            });
+        }
+    </script>
+</body>
+</html>

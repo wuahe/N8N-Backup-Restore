@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>調試主頁面 - N8N Backup & Restore</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .debug-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .status.success {
+            background: #e8f5e8;
+            color: #4caf50;
+            border: 1px solid #4caf50;
+        }
+        .status.error {
+            background: #ffebee;
+            color: #f44336;
+            border: 1px solid #f44336;
+        }
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #1976d2;
+        }
+        .btn {
+            background: #ff6d5a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #e55a47;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>🔧 主頁面調試工具</h1>
+        
+        <div id="debugInfo">
+            <div class="status info">正在檢查登入狀態...</div>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <button class="btn" onclick="checkLoginStatus()">重新檢查登入狀態</button>
+            <button class="btn" onclick="clearAndLogin()">清除數據並重新登入</button>
+            <button class="btn" onclick="forceShowMain()">強制顯示主應用</button>
+        </div>
+        
+        <div id="mainApp" style="display: none;">
+            <h2>🎉 主應用載入成功！</h2>
+            <p>如果你看到這個消息，說明登入驗證已經通過。</p>
+            <button class="btn" onclick="window.location.href='/'">前往完整主應用</button>
+        </div>
+    </div>
+
+    <script>
+        let authToken = null;
+        let currentUser = null;
+        
+        function addDebugInfo(message, type = 'info') {
+            const debugDiv = document.getElementById('debugInfo');
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            debugDiv.appendChild(statusDiv);
+        }
+        
+        async function checkLoginStatus() {
+            addDebugInfo('開始檢查登入狀態...', 'info');
+            
+            // 檢查 localStorage
+            const savedToken = localStorage.getItem('authToken');
+            const savedUser = localStorage.getItem('currentUser');
+            
+            if (!savedToken || !savedUser) {
+                addDebugInfo('❌ 沒有找到保存的登入信息', 'error');
+                return false;
+            }
+            
+            addDebugInfo('✅ 找到保存的登入信息', 'success');
+            addDebugInfo('Token: ' + savedToken.substring(0, 50) + '...', 'info');
+            addDebugInfo('User: ' + savedUser, 'info');
+            
+            authToken = savedToken;
+            currentUser = JSON.parse(savedUser);
+            
+            // 驗證 token
+            try {
+                addDebugInfo('正在驗證 token...', 'info');
+                
+                const response = await fetch('/api/auth/verify', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                addDebugInfo('驗證請求狀態: ' + response.status, 'info');
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    addDebugInfo('驗證結果: ' + JSON.stringify(result), 'info');
+                    
+                    if (result.success) {
+                        addDebugInfo('✅ Token 驗證成功！', 'success');
+                        document.getElementById('mainApp').style.display = 'block';
+                        return true;
+                    } else {
+                        addDebugInfo('❌ Token 驗證失敗', 'error');
+                    }
+                } else {
+                    const errorText = await response.text();
+                    addDebugInfo('❌ 驗證請求失敗: ' + errorText, 'error');
+                }
+            } catch (error) {
+                addDebugInfo('❌ 驗證請求錯誤: ' + error.message, 'error');
+            }
+            
+            return false;
+        }
+        
+        function clearAndLogin() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            addDebugInfo('✅ 已清除登入數據', 'success');
+            window.location.href = '/simple-login.html';
+        }
+        
+        function forceShowMain() {
+            document.getElementById('mainApp').style.display = 'block';
+            addDebugInfo('✅ 強制顯示主應用', 'success');
+        }
+        
+        // 頁面載入時自動檢查
+        window.onload = function() {
+            setTimeout(checkLoginStatus, 500);
+        };
+    </script>
+</body>
+</html>

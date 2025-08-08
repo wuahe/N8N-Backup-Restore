@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能關聯選擇測試</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { display: flex; gap: 20px; }
+        .section { flex: 1; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
+        .item { padding: 8px; border-bottom: 1px solid #eee; }
+        .item:last-child { border-bottom: none; }
+        .auto-selected { background: #e8f5e8; border-left: 3px solid #4caf50; }
+        .auto-selected .name::after { content: " (自動選中)"; color: #4caf50; font-size: 12px; }
+        h3 { margin-top: 0; }
+        input[type="checkbox"] { margin-right: 8px; }
+        .name { font-weight: bold; }
+        .details { font-size: 12px; color: #666; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🎯 N8N 智能關聯選擇功能測試</h1>
+    <p>當你勾選左邊的 Workflow 時，右邊相關的 Credentials 會自動被勾選。</p>
+    
+    <div class="container">
+        <div class="section">
+            <h3>📋 Workflows</h3>
+            <div id="workflows-list">載入中...</div>
+        </div>
+        
+        <div class="section">
+            <h3>🔑 Credentials</h3>
+            <div id="credentials-list">載入中...</div>
+        </div>
+    </div>
+
+    <script>
+        let workflows = [];
+        let credentials = [];
+
+        // 載入數據
+        async function loadData() {
+            try {
+                const [workflowsRes, credentialsRes] = await Promise.all([
+                    fetch('/api/n8n/workflows'),
+                    fetch('/api/n8n/credentials')
+                ]);
+                
+                workflows = await workflowsRes.json();
+                credentials = await credentialsRes.json();
+                
+                renderWorkflows();
+                renderCredentials();
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        // 渲染 workflows
+        function renderWorkflows() {
+            const container = document.getElementById('workflows-list');
+            container.innerHTML = workflows.slice(0, 10).map(workflow => `
+                <div class="item">
+                    <label>
+                        <input type="checkbox" 
+                               value="${workflow.id}" 
+                               data-related-credentials="${(workflow.relatedCredentialIds || []).join(',')}"
+                               onchange="handleWorkflowSelection(this)">
+                        <div class="name">${workflow.name}</div>
+                        <div class="details">
+                            相關憑證: ${workflow.relatedCredentials ? workflow.relatedCredentials.length : 0} 個
+                            ${workflow.relatedCredentials ? workflow.relatedCredentials.map(c => c.name).join(', ') : ''}
+                        </div>
+                    </label>
+                </div>
+            `).join('');
+        }
+
+        // 渲染 credentials
+        function renderCredentials() {
+            const container = document.getElementById('credentials-list');
+            container.innerHTML = credentials.map(credential => `
+                <div class="item" id="credential-item-${credential.id}">
+                    <label>
+                        <input type="checkbox" id="credential-${credential.id}" value="${credential.id}">
+                        <div class="name">${credential.name}</div>
+                        <div class="details">類型: ${credential.type}</div>
+                    </label>
+                </div>
+            `).join('');
+        }
+
+        // 處理 workflow 選擇
+        function handleWorkflowSelection(workflowCheckbox) {
+            const isChecked = workflowCheckbox.checked;
+            const relatedCredentialIds = workflowCheckbox.dataset.relatedCredentials;
+            
+            if (relatedCredentialIds) {
+                const credentialIds = relatedCredentialIds.split(',').filter(id => id.trim());
+                
+                credentialIds.forEach(credentialId => {
+                    const credentialCheckbox = document.getElementById(`credential-${credentialId}`);
+                    const credentialItem = document.getElementById(`credential-item-${credentialId}`);
+                    
+                    if (credentialCheckbox && credentialItem) {
+                        if (isChecked) {
+                            credentialCheckbox.checked = true;
+                            credentialItem.classList.add('auto-selected');
+                        } else {
+                            const stillNeeded = isCredentialStillNeeded(credentialId);
+                            if (!stillNeeded) {
+                                credentialCheckbox.checked = false;
+                                credentialItem.classList.remove('auto-selected');
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // 檢查 credential 是否還被其他已選中的 workflow 需要
+        function isCredentialStillNeeded(credentialId) {
+            const selectedWorkflows = document.querySelectorAll('input[type="checkbox"]:checked[data-related-credentials]');
+            
+            for (const workflowCheckbox of selectedWorkflows) {
+                const relatedCredentialIds = workflowCheckbox.dataset.relatedCredentials;
+                if (relatedCredentialIds && relatedCredentialIds.split(',').includes(credentialId)) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        // 頁面載入時執行
+        loadData();
+    </script>
+</body>
+</html>

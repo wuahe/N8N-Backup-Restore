@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N8N Backup & Restore Tool</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- 登入頁面 -->
+        <div id="loginPage" class="page">
+            <div class="login-container">
+                <div class="login-form">
+                    <h2><i class="fas fa-shield-alt"></i> N8N Backup & Restore</h2>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username">用戶名</label>
+                            <input type="text" id="username" name="username" value="albouwu@gmail.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">密碼</label>
+                            <input type="password" id="password" name="password" value="FI@600828" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt"></i> 登入
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主頁面 -->
+        <div id="mainPage" class="page hidden">
+            <!-- 頂部導航 -->
+            <nav class="navbar">
+                <div class="nav-brand">
+                    <i class="fas fa-database"></i>
+                    N8N Backup & Restore
+                </div>
+                <div class="nav-actions">
+                    <span class="user-info">
+                        <i class="fas fa-user"></i>
+                        <span id="currentUser">用戶</span>
+                    </span>
+                    <button id="logoutBtn" class="btn btn-outline">
+                        <i class="fas fa-sign-out-alt"></i> 登出
+                    </button>
+                </div>
+            </nav>
+
+            <!-- 主要內容 -->
+            <div class="main-content">
+                <!-- 側邊欄 -->
+                <aside class="sidebar">
+                    <div class="sidebar-menu">
+                        <button class="menu-item active" data-tab="backup">
+                            <i class="fas fa-upload"></i>
+                            <span>備份</span>
+                        </button>
+                        <button class="menu-item" data-tab="restore">
+                            <i class="fas fa-download"></i>
+                            <span>還原</span>
+                        </button>
+                        <button class="menu-item" data-tab="history">
+                            <i class="fas fa-history"></i>
+                            <span>備份歷史</span>
+                        </button>
+                        <button class="menu-item" data-tab="cross-env">
+                            <i class="fas fa-exchange-alt"></i>
+                            <span>跨環境</span>
+                        </button>
+                    </div>
+                </aside>
+
+                <!-- 內容區域 -->
+                <main class="content">
+                    <!-- 備份頁面 -->
+                    <div id="backupTab" class="tab-content active">
+                        <div class="content-header">
+                            <h2><i class="fas fa-upload"></i> 備份 Workflows 和 Credentials</h2>
+                            <button id="refreshDataBtn" class="btn btn-outline">
+                                <i class="fas fa-sync-alt"></i> 重新整理
+                            </button>
+                        </div>
+
+                        <div class="backup-container">
+                            <div class="backup-settings">
+                                <div class="form-group">
+                                    <label for="backupName">備份名稱</label>
+                                    <input type="text" id="backupName" placeholder="輸入備份名稱（可選）">
+                                </div>
+                                <div class="form-group">
+                                    <label for="backupDestination">備份目標</label>
+                                    <select id="backupDestination">
+                                        <option value="github">GitHub</option>
+                                        <option value="googledrive">Google Drive</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="items-selection">
+                                <div class="selection-section">
+                                    <div class="section-header">
+                                        <h3>
+                                            <i class="fas fa-project-diagram"></i>
+                                            Workflows
+                                            <span class="item-count" id="workflowCount">0</span>
+                                        </h3>
+                                        <div class="selection-controls">
+                                            <button class="btn btn-sm" id="selectAllWorkflows">全選</button>
+                                            <button class="btn btn-sm" id="deselectAllWorkflows">取消全選</button>
+                                        </div>
+                                    </div>
+                                    <div class="items-list" id="workflowsList">
+                                        <div style="text-align: center; padding: 20px; color: #666;">
+                                            載入中...
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="selection-section">
+                                    <div class="section-header">
+                                        <h3>
+                                            <i class="fas fa-key"></i>
+                                            Credentials
+                                            <span class="item-count" id="credentialCount">0</span>
+                                        </h3>
+                                        <div class="selection-controls">
+                                            <button class="btn btn-sm" id="selectAllCredentials">全選</button>
+                                            <button class="btn btn-sm" id="deselectAllCredentials">取消全選</button>
+                                        </div>
+                                    </div>
+                                    <div class="items-list" id="credentialsList">
+                                        <div style="text-align: center; padding: 20px; color: #666;">
+                                            載入中...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="backup-actions">
+                                <button id="startBackupBtn" class="btn btn-primary btn-large">
+                                    <i class="fas fa-upload"></i>
+                                    開始備份
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 其他標籤頁內容 -->
+                    <div id="restoreTab" class="tab-content">
+                        <div class="content-header">
+                            <h2><i class="fas fa-download"></i> 還原功能</h2>
+                        </div>
+                        <div style="text-align: center; padding: 40px;">
+                            <p>還原功能正在開發中...</p>
+                        </div>
+                    </div>
+
+                    <div id="historyTab" class="tab-content">
+                        <div class="content-header">
+                            <h2><i class="fas fa-history"></i> 備份歷史</h2>
+                        </div>
+                        <div style="text-align: center; padding: 40px;">
+                            <p>歷史記錄功能正在開發中...</p>
+                        </div>
+                    </div>
+
+                    <div id="cross-envTab" class="tab-content">
+                        <div class="content-header">
+                            <h2><i class="fas fa-exchange-alt"></i> 跨環境備份還原</h2>
+                        </div>
+                        <div style="text-align: center; padding: 40px;">
+                            <p>跨環境功能正在開發中...</p>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- 載入中覆蓋層 -->
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p id="loadingText">處理中...</p>
+            </div>
+        </div>
+
+        <!-- 通知容器 -->
+        <div id="notifications" class="notifications"></div>
+    </div>
+
+    <script>
+        // 全局變量
+        let currentUser = null;
+        let authToken = null;
+        let workflows = [];
+        let credentials = [];
+
+        // 初始化應用
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM 載入完成，開始初始化...');
+            
+            // 獲取 DOM 元素
+            const loginPage = document.getElementById('loginPage');
+            const mainPage = document.getElementById('mainPage');
+            const loginForm = document.getElementById('loginForm');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const currentUserSpan = document.getElementById('currentUser');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            
+            console.log('DOM 元素獲取結果:', {
+                loginPage: !!loginPage,
+                mainPage: !!mainPage,
+                loginForm: !!loginForm,
+                logoutBtn: !!logoutBtn,
+                currentUserSpan: !!currentUserSpan
+            });
+            
+            // 檢查登入狀態
+            checkLoginStatus();
+            
+            // 設置事件監聽器
+            if (loginForm) {
+                loginForm.addEventListener('submit', handleLogin);
+            }
+            
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', handleLogout);
+            }
+            
+            // 標籤頁切換
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const tabName = this.dataset.tab;
+                    switchTab(tabName);
+                });
+            });
+            
+            // 重新整理按鈕
+            const refreshDataBtn = document.getElementById('refreshDataBtn');
+            if (refreshDataBtn) {
+                refreshDataBtn.addEventListener('click', loadInitialData);
+            }
+        });
+        
+        // 檢查登入狀態
+        function checkLoginStatus() {
+            console.log('檢查登入狀態...');
+            
+            const savedToken = localStorage.getItem('authToken');
+            const savedUser = localStorage.getItem('currentUser');
+            
+            if (savedToken && savedUser) {
+                console.log('找到保存的登入信息');
+                authToken = savedToken;
+                currentUser = JSON.parse(savedUser);
+                showMainPage();
+                loadInitialData();
+            } else {
+                console.log('沒有找到登入信息，顯示登入頁面');
+                showLoginPage();
+            }
+        }
+        
+        // 顯示登入頁面
+        function showLoginPage() {
+            console.log('顯示登入頁面');
+            const loginPage = document.getElementById('loginPage');
+            const mainPage = document.getElementById('mainPage');
+            
+            if (loginPage) loginPage.classList.remove('hidden');
+            if (mainPage) mainPage.classList.add('hidden');
+        }
+        
+        // 顯示主頁面
+        function showMainPage() {
+            console.log('顯示主頁面');
+            const loginPage = document.getElementById('loginPage');
+            const mainPage = document.getElementById('mainPage');
+            const currentUserSpan = document.getElementById('currentUser');
+            
+            if (loginPage) loginPage.classList.add('hidden');
+            if (mainPage) mainPage.classList.remove('hidden');
+            if (currentUserSpan && currentUser) {
+                currentUserSpan.textContent = currentUser.username;
+            }
+        }
+        
+        // 處理登入
+        async function handleLogin(e) {
+            e.preventDefault();
+            console.log('處理登入...');
+            
+            const formData = new FormData(e.target);
+            const loginData = {
+                username: formData.get('username'),
+                password: formData.get('password')
+            };
+            
+            try {
+                showLoading('登入中...');
+                
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(loginData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    authToken = result.token;
+                    currentUser = result.user;
+                    
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    
+                    showMainPage();
+                    loadInitialData();
+                    showNotification('登入成功', 'success');
+                } else {
+                    showNotification(result.error || '登入失敗', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showNotification('登入失敗，請檢查網路連接', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // 處理登出
+        function handleLogout() {
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            showLoginPage();
+            showNotification('已登出', 'info');
+        }
+        
+        // 載入初始數據
+        async function loadInitialData() {
+            if (!authToken) return;
+            
+            try {
+                showLoading('載入數據中...');
+                
+                const [workflowsResponse, credentialsResponse] = await Promise.all([
+                    fetch('/api/n8n/workflows', {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    }),
+                    fetch('/api/n8n/credentials', {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    })
+                ]);
+                
+                workflows = await workflowsResponse.json();
+                credentials = await credentialsResponse.json();
+                
+                renderWorkflowsList();
+                renderCredentialsList();
+                
+                showNotification('數據載入完成', 'success');
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showNotification('載入數據失敗', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // 渲染 workflows 列表
+        function renderWorkflowsList() {
+            const container = document.getElementById('workflowsList');
+            const countElement = document.getElementById('workflowCount');
+            
+            if (!container || !countElement) return;
+            
+            countElement.textContent = workflows.length;
+            
+            if (workflows.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">沒有找到 workflows</div>';
+                return;
+            }
+            
+            container.innerHTML = workflows.map(workflow => `
+                <div class="item-checkbox">
+                    <input type="checkbox" id="workflow-${workflow.id}" value="${workflow.id}" data-type="workflow"
+                           data-related-credentials="${(workflow.relatedCredentialIds || []).join(',')}"
+                           onchange="handleWorkflowSelection(this)">
+                    <div class="item-info">
+                        <div class="item-name">${workflow.name}</div>
+                        <div class="item-details">
+                            <span class="item-status ${workflow.active ? 'status-active' : 'status-inactive'}">
+                                <i class="fas ${workflow.active ? 'fa-play' : 'fa-pause'}"></i>
+                                ${workflow.active ? '啟用' : '停用'}
+                            </span>
+                            <span>相關憑證: ${workflow.relatedCredentials ? workflow.relatedCredentials.length : 0}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // 渲染 credentials 列表
+        function renderCredentialsList() {
+            const container = document.getElementById('credentialsList');
+            const countElement = document.getElementById('credentialCount');
+            
+            if (!container || !countElement) return;
+            
+            countElement.textContent = credentials.length;
+            
+            if (credentials.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">沒有找到 credentials</div>';
+                return;
+            }
+            
+            container.innerHTML = credentials.map(credential => `
+                <div class="item-checkbox" id="credential-item-${credential.id}">
+                    <input type="checkbox" id="credential-${credential.id}" value="${credential.id}" data-type="credential">
+                    <div class="item-info">
+                        <div class="item-name">${credential.name}</div>
+                        <div class="item-details">
+                            <span>類型: ${credential.type}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 智能關聯：勾選 workflow 時自動勾選其所用 credentials
+        function handleWorkflowSelection(workflowCheckbox) {
+            const isChecked = workflowCheckbox.checked;
+            const relatedCredentialIds = workflowCheckbox.dataset.relatedCredentials;
+            if (!relatedCredentialIds) return;
+
+            const credentialIds = relatedCredentialIds.split(',').filter(id => id.trim());
+            credentialIds.forEach(credentialId => {
+                const credentialCheckbox = document.getElementById(`credential-${credentialId}`);
+                const credentialItem = document.getElementById(`credential-item-${credentialId}`);
+                if (!credentialCheckbox) return;
+
+                if (isChecked) {
+                    credentialCheckbox.checked = true;
+                    if (credentialItem) credentialItem.classList.add('auto-selected');
+                } else {
+                    const stillNeeded = isCredentialStillNeeded(credentialId);
+                    if (!stillNeeded) {
+                        credentialCheckbox.checked = false;
+                        if (credentialItem) credentialItem.classList.remove('auto-selected');
+                    }
+                }
+            });
+        }
+
+        // 判斷某 credential 是否仍被其他已選 workflow 需要
+        function isCredentialStillNeeded(credentialId) {
+            const selectedWorkflows = document.querySelectorAll('input[data-type="workflow"]:checked');
+            for (const wf of selectedWorkflows) {
+                const ids = (wf.dataset.relatedCredentials || '').split(',');
+                if (ids.includes(credentialId)) return true;
+            }
+            return false;
+        }
+        
+        // 切換標籤頁
+        function switchTab(tabName) {
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+            
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${tabName}Tab`).classList.add('active');
+        }
+        
+        // 顯示載入中
+        function showLoading(text = '載入中...') {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            
+            if (loadingText) loadingText.textContent = text;
+            if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+        }
+        
+        // 隱藏載入中
+        function hideLoading() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        }
+        
+        // 顯示通知
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            const container = document.getElementById('notifications');
+            if (container) {
+                container.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>

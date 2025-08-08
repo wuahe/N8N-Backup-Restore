@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N8N Backup & Restore Tool</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* 登入頁面樣式 */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-form {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-form h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #ff6d5a;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: #ff6d5a;
+            color: white;
+            width: 100%;
+            justify-content: center;
+            padding: 12px;
+            font-size: 16px;
+        }
+
+        .btn-primary:hover {
+            background: #e55a47;
+        }
+
+        /* 主應用樣式 */
+        .navbar {
+            background: white;
+            padding: 0 24px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .nav-brand {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .main-content {
+            display: flex;
+            min-height: calc(100vh - 60px);
+        }
+
+        .sidebar {
+            width: 240px;
+            background: white;
+            border-right: 1px solid #e5e5e5;
+            padding: 20px 0;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 24px;
+            border: none;
+            background: none;
+            color: #666;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            width: 100%;
+        }
+
+        .menu-item:hover {
+            background: #f8f9fa;
+            color: #333;
+        }
+
+        .menu-item.active {
+            background: #fff5f4;
+            color: #ff6d5a;
+            border-right: 3px solid #ff6d5a;
+        }
+
+        .content {
+            flex: 1;
+            padding: 24px;
+            background: #f8f9fa;
+        }
+
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .content-header h2 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #333;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .backup-container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .items-selection {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 30px;
+        }
+
+        .selection-section {
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #f8f9fa;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .section-header h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .item-count {
+            background: #ff6d5a;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .items-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .item-checkbox {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .item-checkbox:hover {
+            background: #f8f9fa;
+        }
+
+        .item-checkbox input[type="checkbox"] {
+            margin-right: 12px;
+            transform: scale(1.2);
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .item-details {
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            gap: 12px;
+        }
+
+        .status-active {
+            color: #4caf50;
+        }
+
+        .status-inactive {
+            color: #f44336;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loading-spinner {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .loading-spinner i {
+            font-size: 32px;
+            color: #ff6d5a;
+            margin-bottom: 16px;
+        }
+
+        .notifications {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .notification {
+            padding: 16px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+        }
+
+        .notification.success {
+            background: #4caf50;
+        }
+
+        .notification.error {
+            background: #f44336;
+        }
+
+        .notification.info {
+            background: #2196f3;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 登入頁面 -->
+        <div id="loginPage" class="page">
+            <div class="login-container">
+                <div class="login-form">
+                    <h2><i class="fas fa-shield-alt"></i> N8N Backup & Restore</h2>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="username">用戶名</label>
+                            <input type="text" id="username" name="username" value="albouwu@gmail.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">密碼</label>
+                            <input type="password" id="password" name="password" value="FI@600828" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt"></i> 登入
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主頁面 -->
+        <div id="mainPage" class="page hidden">
+            <!-- 頂部導航 -->
+            <nav class="navbar">
+                <div class="nav-brand">
+                    <i class="fas fa-database"></i>
+                    N8N Backup & Restore
+                </div>
+                <div class="nav-actions">
+                    <span class="user-info">
+                        <i class="fas fa-user"></i>
+                        <span id="currentUser">用戶</span>
+                    </span>
+                    <button id="logoutBtn" class="btn btn-outline">
+                        <i class="fas fa-sign-out-alt"></i> 登出
+                    </button>
+                </div>
+            </nav>
+
+            <!-- 主要內容 -->
+            <div class="main-content">
+                <!-- 側邊欄 -->
+                <aside class="sidebar">
+                    <div class="sidebar-menu">
+                        <button class="menu-item active" data-tab="backup">
+                            <i class="fas fa-upload"></i>
+                            <span>備份</span>
+                        </button>
+                        <button class="menu-item" data-tab="restore">
+                            <i class="fas fa-download"></i>
+                            <span>還原</span>
+                        </button>
+                        <button class="menu-item" data-tab="history">
+                            <i class="fas fa-history"></i>
+                            <span>備份歷史</span>
+                        </button>
+                        <button class="menu-item" data-tab="cross-env">
+                            <i class="fas fa-exchange-alt"></i>
+                            <span>跨環境</span>
+                        </button>
+                    </div>
+                </aside>
+
+                <!-- 內容區域 -->
+                <main class="content">
+                    <!-- 備份頁面 -->
+                    <div id="backupTab" class="tab-content active">
+                        <div class="content-header">
+                            <h2><i class="fas fa-upload"></i> 備份 Workflows 和 Credentials</h2>
+                            <button id="refreshDataBtn" class="btn btn-outline">
+                                <i class="fas fa-sync-alt"></i> 重新整理
+                            </button>
+                        </div>
+
+                        <div class="backup-container">
+                            <div class="items-selection">
+                                <div class="selection-section">
+                                    <div class="section-header">
+                                        <h3>
+                                            <i class="fas fa-project-diagram"></i>
+                                            Workflows
+                                            <span class="item-count" id="workflowCount">0</span>
+                                        </h3>
+                                    </div>
+                                    <div class="items-list" id="workflowsList">
+                                        <div style="text-align: center; padding: 20px; color: #666;">
+                                            載入中...
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="selection-section">
+                                    <div class="section-header">
+                                        <h3>
+                                            <i class="fas fa-key"></i>
+                                            Credentials
+                                            <span class="item-count" id="credentialCount">0</span>
+                                        </h3>
+                                    </div>
+                                    <div class="items-list" id="credentialsList">
+                                        <div style="text-align: center; padding: 20px; color: #666;">
+                                            載入中...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- 載入中覆蓋層 -->
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p id="loadingText">處理中...</p>
+            </div>
+        </div>
+
+        <!-- 通知容器 -->
+        <div id="notifications" class="notifications"></div>
+    </div>
+
+    <script>
+        // 全局變量
+        let currentUser = null;
+        let authToken = null;
+        let workflows = [];
+        let credentials = [];
+
+        // 初始化應用
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('應用初始化開始...');
+            
+            // 檢查登入狀態
+            checkLoginStatus();
+            
+            // 設置事件監聽器
+            setupEventListeners();
+        });
+        
+        // 設置事件監聽器
+        function setupEventListeners() {
+            const loginForm = document.getElementById('loginForm');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const refreshDataBtn = document.getElementById('refreshDataBtn');
+            
+            if (loginForm) {
+                loginForm.addEventListener('submit', handleLogin);
+            }
+            
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', handleLogout);
+            }
+            
+            if (refreshDataBtn) {
+                refreshDataBtn.addEventListener('click', loadInitialData);
+            }
+        }
+        
+        // 檢查登入狀態
+        function checkLoginStatus() {
+            const savedToken = localStorage.getItem('authToken');
+            const savedUser = localStorage.getItem('currentUser');
+            
+            if (savedToken && savedUser) {
+                authToken = savedToken;
+                currentUser = JSON.parse(savedUser);
+                showMainPage();
+                loadInitialData();
+            } else {
+                showLoginPage();
+            }
+        }
+        
+        // 顯示登入頁面
+        function showLoginPage() {
+            document.getElementById('loginPage').classList.remove('hidden');
+            document.getElementById('mainPage').classList.add('hidden');
+        }
+        
+        // 顯示主頁面
+        function showMainPage() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('mainPage').classList.remove('hidden');
+            
+            const currentUserSpan = document.getElementById('currentUser');
+            if (currentUserSpan && currentUser) {
+                currentUserSpan.textContent = currentUser.username;
+            }
+        }
+        
+        // 處理登入
+        async function handleLogin(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const loginData = {
+                username: formData.get('username'),
+                password: formData.get('password')
+            };
+            
+            try {
+                showLoading('登入中...');
+                
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(loginData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    authToken = result.token;
+                    currentUser = result.user;
+                    
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    
+                    showMainPage();
+                    loadInitialData();
+                    showNotification('登入成功', 'success');
+                } else {
+                    showNotification(result.error || '登入失敗', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showNotification('登入失敗，請檢查網路連接', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // 處理登出
+        function handleLogout() {
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            showLoginPage();
+            showNotification('已登出', 'info');
+        }
+        
+        // 載入初始數據
+        async function loadInitialData() {
+            if (!authToken) return;
+            
+            try {
+                showLoading('載入數據中...');
+                
+                const [workflowsResponse, credentialsResponse] = await Promise.all([
+                    fetch('/api/n8n/workflows', {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    }),
+                    fetch('/api/n8n/credentials', {
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    })
+                ]);
+                
+                workflows = await workflowsResponse.json();
+                credentials = await credentialsResponse.json();
+                
+                renderWorkflowsList();
+                renderCredentialsList();
+                
+                showNotification('數據載入完成', 'success');
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showNotification('載入數據失敗', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // 渲染 workflows 列表
+        function renderWorkflowsList() {
+            const container = document.getElementById('workflowsList');
+            const countElement = document.getElementById('workflowCount');
+            
+            if (!container || !countElement) return;
+            
+            countElement.textContent = workflows.length;
+            
+            if (workflows.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">沒有找到 workflows</div>';
+                return;
+            }
+            
+            container.innerHTML = workflows.map(workflow => `
+                <div class="item-checkbox">
+                    <input type="checkbox" id="workflow-${workflow.id}" value="${workflow.id}" data-type="workflow">
+                    <div class="item-info">
+                        <div class="item-name">${workflow.name}</div>
+                        <div class="item-details">
+                            <span class="item-status ${workflow.active ? 'status-active' : 'status-inactive'}">
+                                <i class="fas ${workflow.active ? 'fa-play' : 'fa-pause'}"></i>
+                                ${workflow.active ? '啟用' : '停用'}
+                            </span>
+                            <span>相關憑證: ${workflow.relatedCredentials ? workflow.relatedCredentials.length : 0}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // 渲染 credentials 列表
+        function renderCredentialsList() {
+            const container = document.getElementById('credentialsList');
+            const countElement = document.getElementById('credentialCount');
+            
+            if (!container || !countElement) return;
+            
+            countElement.textContent = credentials.length;
+            
+            if (credentials.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">沒有找到 credentials</div>';
+                return;
+            }
+            
+            container.innerHTML = credentials.map(credential => `
+                <div class="item-checkbox">
+                    <input type="checkbox" id="credential-${credential.id}" value="${credential.id}" data-type="credential">
+                    <div class="item-info">
+                        <div class="item-name">${credential.name}</div>
+                        <div class="item-details">
+                            <span>類型: ${credential.type}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // 顯示載入中
+        function showLoading(text = '載入中...') {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingText = document.getElementById('loadingText');
+            
+            if (loadingText) loadingText.textContent = text;
+            if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+        }
+        
+        // 隱藏載入中
+        function hideLoading() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        }
+        
+        // 顯示通知
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            const container = document.getElementById('notifications');
+            if (container) {
+                container.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>

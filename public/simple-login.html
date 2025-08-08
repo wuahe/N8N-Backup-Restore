@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>簡單登入 - N8N Backup & Restore</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #ff6d5a;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #ff6d5a;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background: #e55a47;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            display: none;
+        }
+        .status.success {
+            background: #e8f5e8;
+            color: #4caf50;
+            border: 1px solid #4caf50;
+        }
+        .status.error {
+            background: #ffebee;
+            color: #f44336;
+            border: 1px solid #f44336;
+        }
+        .preset-btn {
+            background: #2196f3;
+            margin-bottom: 5px;
+        }
+        .preset-btn:hover {
+            background: #1976d2;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>🔐 N8N Backup & Restore</h2>
+        
+        <!-- 預設賬號按鈕 -->
+        <button class="btn preset-btn" onclick="useYourAccount()">使用你的賬號 (albouwu@gmail.com)</button>
+        <button class="btn preset-btn" onclick="useAdminAccount()">使用管理員賬號 (admin)</button>
+        
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">用戶名</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">密碼</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn">登入</button>
+        </form>
+        
+        <div id="status" class="status"></div>
+        
+        <div style="margin-top: 20px; font-size: 12px; color: #666; text-align: center;">
+            <p><strong>你的賬號:</strong> albouwu@gmail.com / FI@600828</p>
+            <p><strong>管理員:</strong> admin / password</p>
+        </div>
+    </div>
+
+    <script>
+        function useYourAccount() {
+            document.getElementById('username').value = 'albouwu@gmail.com';
+            document.getElementById('password').value = 'FI@600828';
+        }
+        
+        function useAdminAccount() {
+            document.getElementById('username').value = 'admin';
+            document.getElementById('password').value = 'password';
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+        
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showStatus('請輸入用戶名和密碼', 'error');
+                return;
+            }
+            
+            try {
+                showStatus('正在登入...', 'info');
+                
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 保存 token 到 localStorage
+                    localStorage.setItem('authToken', result.token);
+                    localStorage.setItem('currentUser', JSON.stringify(result.user));
+                    
+                    showStatus('✅ 登入成功！正在跳轉...', 'success');
+                    
+                    // 跳轉到主頁面
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                } else {
+                    showStatus('❌ 登入失敗: ' + (result.error || '用戶名或密碼錯誤'), 'error');
+                }
+            } catch (error) {
+                showStatus('❌ 連接錯誤: ' + error.message, 'error');
+            }
+        });
+        
+        // 檢查是否已經登入
+        window.onload = function() {
+            const savedToken = localStorage.getItem('authToken');
+            const savedUser = localStorage.getItem('currentUser');
+            
+            if (savedToken && savedUser) {
+                const user = JSON.parse(savedUser);
+                showStatus(`已檢測到登入狀態: ${user.username}`, 'success');
+                
+                // 提供直接跳轉選項
+                setTimeout(() => {
+                    if (confirm('檢測到你已經登入，是否直接進入主應用？')) {
+                        window.location.href = '/';
+                    }
+                }, 1000);
+            }
+        };
+    </script>
+</body>
+</html>

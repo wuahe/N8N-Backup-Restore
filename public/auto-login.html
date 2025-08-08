@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自動登入 - N8N Backup & Restore</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .auto-login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #ff6d5a;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .status.success {
+            background: #e8f5e8;
+            color: #4caf50;
+        }
+        .status.error {
+            background: #ffebee;
+            color: #f44336;
+        }
+        .manual-login {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .credentials {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .btn {
+            background: #ff6d5a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+        }
+        .btn:hover {
+            background: #e55a47;
+        }
+    </style>
+</head>
+<body>
+    <div class="auto-login-container">
+        <h2>🚀 N8N Backup & Restore</h2>
+        <h3>自動登入中...</h3>
+        
+        <div class="spinner"></div>
+        
+        <div id="status" class="status" style="display: none;"></div>
+        
+        <div class="manual-login">
+            <h4>📋 登入信息</h4>
+            <div class="credentials">
+                <strong>用戶名:</strong> admin<br>
+                <strong>密碼:</strong> password
+            </div>
+            
+            <a href="/" class="btn">手動登入</a>
+            <button onclick="autoLogin()" class="btn">重新嘗試自動登入</button>
+        </div>
+    </div>
+
+    <script>
+        async function autoLogin() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = '正在嘗試自動登入...';
+            statusDiv.className = 'status';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'password'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 保存 token 到 localStorage
+                    localStorage.setItem('authToken', result.token);
+                    localStorage.setItem('currentUser', JSON.stringify(result.user));
+                    
+                    statusDiv.textContent = '✅ 登入成功！正在跳轉...';
+                    statusDiv.className = 'status success';
+                    
+                    // 跳轉到主頁面
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1000);
+                } else {
+                    statusDiv.textContent = '❌ 登入失敗: ' + (result.error || '未知錯誤');
+                    statusDiv.className = 'status error';
+                }
+            } catch (error) {
+                statusDiv.textContent = '❌ 連接錯誤: ' + error.message;
+                statusDiv.className = 'status error';
+            }
+        }
+        
+        // 頁面載入時自動嘗試登入
+        window.onload = function() {
+            setTimeout(autoLogin, 1000);
+        };
+    </script>
+</body>
+</html>
