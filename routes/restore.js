@@ -23,6 +23,58 @@ oauth2Client.setCredentials({
 
 const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
+// 確保備份文件夾存在
+async function ensureBackupFolder() {
+  try {
+    // 如果環境變數中指定了備份文件夾 ID，直接使用
+    const specifiedFolderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID;
+    if (specifiedFolderId) {
+      // 驗證文件夾是否存在且可訪問
+      try {
+        await drive.files.get({
+          fileId: specifiedFolderId,
+          fields: 'id, name'
+        });
+        console.log(`Using specified backup folder ID: ${specifiedFolderId}`);
+        return specifiedFolderId;
+      } catch (error) {
+        console.error(`Specified folder ID ${specifiedFolderId} is not accessible:`, error.message);
+        // 繼續執行下面的邏輯，嘗試創建新文件夾
+      }
+    }
+    
+    const folderName = 'N8N-Backups';
+    
+    // 搜索是否已存在備份文件夾
+    const searchResponse = await drive.files.list({
+      q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name)'
+    });
+    
+    if (searchResponse.data.files.length > 0) {
+      // 文件夾已存在，返回 ID
+      return searchResponse.data.files[0].id;
+    }
+    
+    // 文件夾不存在，創建新文件夾
+    const createResponse = await drive.files.create({
+      requestBody: {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder'
+      },
+      fields: 'id'
+    });
+    
+    console.log(`Created backup folder: ${folderName} (ID: ${createResponse.data.id})`);
+    return createResponse.data.id;
+    
+  } catch (error) {
+    console.error('Error ensuring backup folder:', error);
+    // 如果創建文件夾失敗，返回 null，文件將上傳到根目錄
+    return null;
+  }
+}
+
 // 獲取 N8N 環境配置
 function getN8nConfig(envId = 'default') {
   const configs = {
@@ -116,7 +168,15 @@ router.post('/googledrive', async (req, res) => {
       alt: 'media'
     });
     
-    const backupData = JSON.parse(response.data);
+    // 處理 Google Drive API 返回的數據格式
+    let backupData;
+    if (typeof response.data === 'string') {
+      backupData = JSON.parse(response.data);
+    } else if (typeof response.data === 'object') {
+      backupData = response.data;
+    } else {
+      throw new Error('Invalid backup data format from Google Drive');
+    }
     
     // 解密數據
     const decryptedData = decryptSensitiveData(backupData);
@@ -184,7 +244,16 @@ router.get('/googledrive/preview/:fileId', async (req, res) => {
       alt: 'media'
     });
     
-    const backupData = JSON.parse(response.data);
+    // 處理 Google Drive API 返回的數據格式
+    let backupData;
+    if (typeof response.data === 'string') {
+      backupData = JSON.parse(response.data);
+    } else if (typeof response.data === 'object') {
+      backupData = response.data;
+    } else {
+      console.error('Unexpected response data type:', typeof response.data, response.data);
+      throw new Error('Invalid backup data format from Google Drive');
+    }
     
     // 返回預覽信息（不包含敏感數據）
     const preview = {
@@ -375,5 +444,66 @@ function decryptSensitiveData(data) {
   
   return decryptedData;
 }
+
+// 獲取 Google Drive 備份列表
+router.get('/googledrive/list', async (req, res) => {
+  try {
+    // 獲取備份文件夾 ID
+    const folderId = await ensureBackupFolder();
+    
+    // 構建搜索查詢 - 搜索所有 JSON 備份文件
+    let query = "(name contains 'backup' or name contains 'n8n-backup') and mimeType='application/json'";
+    if (folderId) {
+      query += ` and '${folderId}' in parents`;
+    }
+    
+    const response = await drive.files.list({
+      q: query,
+      fields: 'files(id, name, size, createdTime, modifiedTime)',
+      orderBy: 'createdTime desc'
+    });
+    
+    const backups = response.data.files.map(file => ({
+      id: file.id,
+      name: file.name,
+      size: file.size,
+      createdAt: file.createdTime,
+      modifiedAt: file.modifiedTime
+    }));
+    
+    res.json(backups);
+  } catch (error) {
+    console.error('Error listing Google Drive backups:', error);
+    res.status(500).json({ error: 'Failed to list Google Drive backups' });
+  }
+});
+
+// 獲取 GitHub 備份列表
+router.get('/github/list', async (req, res) => {
+  try {
+    const response = await octokit.repos.getContent({
+      owner: process.env.GITHUB_REPO_OWNER,
+      repo: process.env.GITHUB_REPO_NAME,
+      path: 'backups'
+    });
+    
+    const backups = response.data
+      .filter(file => file.name.endsWith('.json'))
+      .map(file => ({
+        name: file.name,
+        size: file.size,
+        downloadUrl: file.download_url,
+        createdAt: file.name.match(/(\d+)\.json$/)?.[1] 
+          ? new Date(parseInt(file.name.match(/(\d+)\.json$/)[1])).toISOString()
+          : null
+      }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    res.json(backups);
+  } catch (error) {
+    console.error('Error listing GitHub backups:', error);
+    res.status(500).json({ error: 'Failed to list GitHub backups' });
+  }
+});
 
 module.exports = router;

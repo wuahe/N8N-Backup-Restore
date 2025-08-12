@@ -23,6 +23,58 @@ oauth2Client.setCredentials({
 
 const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
+// 確保備份文件夾存在
+async function ensureBackupFolder() {
+  try {
+    // 如果環境變數中指定了備份文件夾 ID，直接使用
+    const specifiedFolderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID;
+    if (specifiedFolderId) {
+      // 驗證文件夾是否存在且可訪問
+      try {
+        await drive.files.get({
+          fileId: specifiedFolderId,
+          fields: 'id, name'
+        });
+        console.log(`Using specified backup folder ID: ${specifiedFolderId}`);
+        return specifiedFolderId;
+      } catch (error) {
+        console.error(`Specified folder ID ${specifiedFolderId} is not accessible:`, error.message);
+        // 繼續執行下面的邏輯，嘗試創建新文件夾
+      }
+    }
+    
+    const folderName = 'N8N-Backups';
+    
+    // 搜索是否已存在備份文件夾
+    const searchResponse = await drive.files.list({
+      q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name)'
+    });
+    
+    if (searchResponse.data.files.length > 0) {
+      // 文件夾已存在，返回 ID
+      return searchResponse.data.files[0].id;
+    }
+    
+    // 文件夾不存在，創建新文件夾
+    const createResponse = await drive.files.create({
+      requestBody: {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder'
+      },
+      fields: 'id'
+    });
+    
+    console.log(`Created backup folder: ${folderName} (ID: ${createResponse.data.id})`);
+    return createResponse.data.id;
+    
+  } catch (error) {
+    console.error('Error ensuring backup folder:', error);
+    // 如果創建文件夾失敗，返回 null，文件將上傳到根目錄
+    return null;
+  }
+}
+
 // 備份到 GitHub
 router.post('/github', async (req, res) => {
   try {
@@ -75,11 +127,14 @@ router.post('/googledrive', async (req, res) => {
     const backupContent = JSON.stringify(encryptedData, null, 2);
     const fileName = `${backupName || 'n8n-backup'}-${Date.now()}.json`;
     
+    // 確保備份文件夾存在
+    let folderId = await ensureBackupFolder();
+    
     // 上傳到 Google Drive
     const response = await drive.files.create({
       requestBody: {
         name: fileName,
-        parents: ['your-backup-folder-id'] // 可選：指定父文件夾
+        parents: folderId ? [folderId] : undefined // 如果有文件夾 ID 則使用，否則上傳到根目錄
       },
       media: {
         mimeType: 'application/json',
@@ -130,8 +185,17 @@ router.get('/github/list', async (req, res) => {
 // 獲取 Google Drive 備份列表
 router.get('/googledrive/list', async (req, res) => {
   try {
+    // 獲取備份文件夾 ID
+    const folderId = await ensureBackupFolder();
+    
+    // 構建搜索查詢 - 搜索所有 JSON 備份文件
+    let query = "(name contains 'backup' or name contains 'n8n-backup') and mimeType='application/json'";
+    if (folderId) {
+      query += ` and '${folderId}' in parents`;
+    }
+    
     const response = await drive.files.list({
-      q: "name contains 'n8n-backup' and mimeType='application/json'",
+      q: query,
       fields: 'files(id, name, size, createdTime, modifiedTime)'
     });
     

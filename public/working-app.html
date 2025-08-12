@@ -185,13 +185,66 @@
                         </div>
                     </div>
 
-                    <!-- 其他標籤頁內容 -->
+                    <!-- 還原標籤頁 -->
                     <div id="restoreTab" class="tab-content">
                         <div class="content-header">
-                            <h2><i class="fas fa-download"></i> 還原功能</h2>
+                            <h2><i class="fas fa-download"></i> 還原 Workflows 和 Credentials</h2>
+                            <button id="refreshBackupsBtn" class="btn btn-outline">
+                                <i class="fas fa-sync-alt"></i> 重新整理
+                            </button>
                         </div>
-                        <div style="text-align: center; padding: 40px;">
-                            <p>還原功能正在開發中...</p>
+
+                        <div class="restore-container">
+                            <div class="restore-settings">
+                                <div class="form-group">
+                                    <label for="restoreSource">還原來源</label>
+                                    <select id="restoreSource">
+                                        <option value="googledrive">Google Drive</option>
+                                        <option value="github">GitHub</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="restoreMode">還原模式</label>
+                                    <select id="restoreMode">
+                                        <option value="skip">跳過現有項目</option>
+                                        <option value="overwrite">覆蓋現有項目</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="restoreTarget">目標環境</label>
+                                    <select id="restoreTarget">
+                                        <option value="default">本地 N8N</option>
+                                        <option value="env_a">環境 A</option>
+                                        <option value="env_b">環境 B</option>
+                                        <option value="env_c">環境 C</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 備份列表 -->
+                            <div class="backups-list">
+                                <h3><i class="fas fa-archive"></i> 可用的備份</h3>
+                                <div id="availableBackups">
+                                    <div style="text-align: center; padding: 20px; color: #666;">
+                                        載入中...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 還原項目選擇 -->
+                            <div class="restore-options hidden" id="restoreOptions">
+                                <h3><i class="fas fa-list-check"></i> 選擇要還原的項目</h3>
+                                <div id="restoreItemsSelection">
+                                    <!-- 動態載入的還原項目 -->
+                                </div>
+                                
+                                <div class="restore-actions">
+                                    <button id="startRestoreBtn" class="btn btn-primary btn-large" disabled>
+                                        <i class="fas fa-download"></i>
+                                        開始還原
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -281,6 +334,11 @@
             if (refreshDataBtn) {
                 refreshDataBtn.addEventListener('click', loadInitialData);
             }
+            
+            const refreshBackupsBtn = document.getElementById('refreshBackupsBtn');
+            if (refreshBackupsBtn) {
+                refreshBackupsBtn.addEventListener('click', loadBackupsList);
+            }
 
             // 全選/取消全選按鈕
             const selectAllWorkflowsBtn = document.getElementById('selectAllWorkflows');
@@ -305,6 +363,23 @@
             const smartToggle = document.getElementById('smartSelectionToggle');
             if (smartToggle) {
                 smartToggle.addEventListener('change', handleSmartToggleChange);
+            }
+
+            // 備份相關事件
+            const startBackupBtn = document.getElementById('startBackupBtn');
+            if (startBackupBtn) {
+                startBackupBtn.addEventListener('click', handleBackup);
+            }
+
+            // 還原相關事件
+            const restoreSource = document.getElementById('restoreSource');
+            if (restoreSource) {
+                restoreSource.addEventListener('change', loadBackupsList);
+            }
+            
+            const startRestoreBtn = document.getElementById('startRestoreBtn');
+            if (startRestoreBtn) {
+                startRestoreBtn.addEventListener('click', handleRestore);
             }
 
             // 鍵盤快捷鍵
@@ -764,6 +839,11 @@
                 content.classList.remove('active');
             });
             document.getElementById(`${tabName}Tab`).classList.add('active');
+            
+            // 根據標籤頁載入相應數據
+            if (tabName === 'restore') {
+                loadBackupsList();
+            }
         }
         
         // 顯示載入中
@@ -796,6 +876,355 @@
                 }, 3000);
             }
         }
+
+        // 載入備份列表
+        async function loadBackupsList() {
+            if (!authToken) return;
+            
+            const source = document.getElementById('restoreSource').value;
+            const container = document.getElementById('availableBackups');
+            
+            try {
+                showLoading('載入備份列表...');
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">載入中...</div>';
+                
+                const response = await fetch(`/api/restore/${source}/list`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const backups = await response.json();
+                renderBackupsList(backups, source);
+                
+            } catch (error) {
+                console.error('Error loading backups:', error);
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #f44336;">載入備份列表失敗</div>';
+                showNotification('載入備份列表失敗', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 渲染備份列表
+        function renderBackupsList(backups, source) {
+            const container = document.getElementById('availableBackups');
+            
+            if (backups.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">沒有找到備份文件</div>';
+                return;
+            }
+            
+            container.innerHTML = backups.map(backup => `
+                <div class="backup-item" data-backup-id="${backup.id || backup.name}" data-source="${source}">
+                    <div class="backup-info">
+                        <div class="backup-name">${backup.name}</div>
+                        <div class="backup-meta">
+                            <span><i class="fas fa-calendar"></i> ${formatDate(backup.createdAt || backup.createdTime)}</span>
+                            <span><i class="fas fa-hdd"></i> ${formatFileSize(backup.size)}</span>
+                        </div>
+                    </div>
+                    <div class="backup-actions">
+                        <button class="btn btn-sm btn-outline" onclick="previewBackup('${backup.id || backup.name}', '${source}')">
+                            <i class="fas fa-eye"></i> 預覽
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="selectBackup('${backup.id || backup.name}', '${source}')">
+                            <i class="fas fa-check"></i> 選擇
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 預覽備份
+        async function previewBackup(backupId, source) {
+            try {
+                showLoading('載入備份預覽...');
+                
+                const response = await fetch(`/api/restore/${source}/preview/${backupId}`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const preview = await response.json();
+                
+                const message = `
+備份時間: ${formatDate(preview.timestamp)}
+Workflows: ${preview.workflows.length} 個
+Credentials: ${preview.credentials.length} 個
+
+Workflows:
+${preview.workflows.map(w => `- ${w.name} (${w.active ? '啟用' : '停用'})`).join('\n')}
+
+Credentials:
+${preview.credentials.map(c => `- ${c.name} (${c.type})`).join('\n')}
+                `;
+                
+                alert(message);
+                
+            } catch (error) {
+                console.error('Error previewing backup:', error);
+                showNotification('載入預覽失敗', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 選擇備份
+        async function selectBackup(backupId, source) {
+            // 更新選中狀態
+            document.querySelectorAll('.backup-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            document.querySelector(`[data-backup-id="${backupId}"]`).classList.add('selected');
+            
+            selectedBackup = { id: backupId, source };
+            
+            // 載入備份內容用於選擇還原項目
+            try {
+                showLoading('載入備份內容...');
+                
+                const response = await fetch(`/api/restore/${source}/preview/${backupId}`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                const preview = await response.json();
+                renderRestoreItemsSelection(preview);
+                
+                document.getElementById('restoreOptions').classList.remove('hidden');
+                
+            } catch (error) {
+                console.error('Error loading backup content:', error);
+                showNotification('載入備份內容失敗', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 渲染還原項目選擇
+        function renderRestoreItemsSelection(preview) {
+            const container = document.getElementById('restoreItemsSelection');
+            
+            container.innerHTML = `
+                <div class="items-selection">
+                    <div class="selection-section">
+                        <div class="section-header">
+                            <h3>
+                                <i class="fas fa-project-diagram"></i>
+                                Workflows
+                                <span class="item-count">${preview.workflows.length}</span>
+                            </h3>
+                            <div class="selection-controls">
+                                <button class="btn btn-sm" onclick="selectAllRestoreItems('workflows', true)">全選</button>
+                                <button class="btn btn-sm" onclick="selectAllRestoreItems('workflows', false)">取消全選</button>
+                            </div>
+                        </div>
+                        <div class="items-list">
+                            ${preview.workflows.map(workflow => `
+                                <div class="item-checkbox">
+                                    <input type="checkbox" id="restore-workflow-${workflow.id}" value="${workflow.id}" data-type="restore-workflow" checked>
+                                    <div class="item-info">
+                                        <div class="item-name">${workflow.name}</div>
+                                        <div class="item-details">
+                                            <span class="item-status ${workflow.active ? 'status-active' : 'status-inactive'}">
+                                                <i class="fas ${workflow.active ? 'fa-play' : 'fa-pause'}"></i>
+                                                ${workflow.active ? '啟用' : '停用'}
+                                            </span>
+                                            ${workflow.tags ? workflow.tags.map(tag => `<span class="item-tag">${tag}</span>`).join('') : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="selection-section">
+                        <div class="section-header">
+                            <h3>
+                                <i class="fas fa-key"></i>
+                                Credentials
+                                <span class="item-count">${preview.credentials.length}</span>
+                            </h3>
+                            <div class="selection-controls">
+                                <button class="btn btn-sm" onclick="selectAllRestoreItems('credentials', true)">全選</button>
+                                <button class="btn btn-sm" onclick="selectAllRestoreItems('credentials', false)">取消全選</button>
+                            </div>
+                        </div>
+                        <div class="items-list">
+                            ${preview.credentials.map(credential => `
+                                <div class="item-checkbox">
+                                    <input type="checkbox" id="restore-credential-${credential.id}" value="${credential.id}" data-type="restore-credential" checked>
+                                    <div class="item-info">
+                                        <div class="item-name">${credential.name}</div>
+                                        <div class="item-details">
+                                            <span>類型: ${credential.type}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 啟用還原按鈕
+            document.getElementById('startRestoreBtn').disabled = false;
+        }
+
+        // 全選/取消全選還原項目
+        function selectAllRestoreItems(type, select) {
+            const checkboxes = document.querySelectorAll(`input[data-type="restore-${type === 'workflows' ? 'workflow' : 'credential'}"]`);
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = select;
+            });
+        }
+
+        // 處理還原
+        async function handleRestore() {
+            if (!selectedBackup) {
+                showNotification('請先選擇要還原的備份', 'warning');
+                return;
+            }
+            
+            const restoreMode = document.getElementById('restoreMode').value;
+            const targetEnv = document.getElementById('restoreTarget').value;
+            
+            // 獲取選中的項目
+            const selectedWorkflows = Array.from(document.querySelectorAll('input[data-type="restore-workflow"]:checked'))
+                .map(cb => cb.value);
+            const selectedCredentials = Array.from(document.querySelectorAll('input[data-type="restore-credential"]:checked'))
+                .map(cb => cb.value);
+            
+            if (selectedWorkflows.length === 0 && selectedCredentials.length === 0) {
+                showNotification('請至少選擇一個項目進行還原', 'warning');
+                return;
+            }
+            
+            try {
+                showLoading('正在還原...');
+                
+                const restoreData = {
+                    [selectedBackup.source === 'github' ? 'fileName' : 'fileId']: selectedBackup.id,
+                    selectedItems: {
+                        workflows: selectedWorkflows,
+                        credentials: selectedCredentials
+                    },
+                    restoreMode,
+                    targetEnvironment: targetEnv
+                };
+                
+                const response = await fetch(`/api/restore/${selectedBackup.source}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(restoreData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('還原完成', 'success');
+                    
+                    // 顯示詳細結果
+                    const summary = `
+還原結果:
+Workflows - 成功: ${result.result.workflows.success.length}, 失敗: ${result.result.workflows.failed.length}
+Credentials - 成功: ${result.result.credentials.success.length}, 失敗: ${result.result.credentials.failed.length}
+                    `;
+                    
+                    console.log('Restore result:', result.result);
+                    
+                    // 重新載入數據
+                    loadInitialData();
+                } else {
+                    showNotification(result.error || '還原失敗', 'error');
+                }
+            } catch (error) {
+                console.error('Restore error:', error);
+                showNotification('還原失敗，請檢查網路連接', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 輔助函數：格式化日期
+        function formatDate(dateString) {
+            if (!dateString) return '未知';
+            const date = new Date(dateString);
+            return date.toLocaleString('zh-TW');
+        }
+
+        // 輔助函數：格式化文件大小
+        function formatFileSize(bytes) {
+            if (!bytes) return '未知';
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // 處理備份
+        async function handleBackup() {
+            const backupName = document.getElementById('backupName').value;
+            const destination = document.getElementById('backupDestination').value;
+            
+            // 獲取選中的項目
+            const selectedWorkflows = Array.from(document.querySelectorAll('input[data-type="workflow"]:checked'))
+                .map(cb => cb.value);
+            const selectedCredentials = Array.from(document.querySelectorAll('input[data-type="credential"]:checked'))
+                .map(cb => cb.value);
+            
+            if (selectedWorkflows.length === 0 && selectedCredentials.length === 0) {
+                showNotification('請至少選擇一個項目進行備份', 'warning');
+                return;
+            }
+            
+            try {
+                showLoading('正在備份...');
+                
+                const backupData = {
+                    workflows,
+                    credentials,
+                    selectedItems: {
+                        workflows: selectedWorkflows,
+                        credentials: selectedCredentials
+                    },
+                    backupName: backupName || `backup-${new Date().toISOString().split('T')[0]}`,
+                    sourceEnvironment: 'default'
+                };
+                
+                const response = await fetch(`/api/backup/${destination}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(backupData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`備份成功上傳到 ${destination.toUpperCase()}`, 'success');
+                    // 清空表單
+                    document.getElementById('backupName').value = '';
+                    selectAllWorkflows(false);
+                    selectAllCredentials(false);
+                } else {
+                    showNotification(result.error || '備份失敗', 'error');
+                }
+            } catch (error) {
+                console.error('Backup error:', error);
+                showNotification('備份失敗，請檢查網路連接', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // 全局變量
+        let selectedBackup = null;
     </script>
 </body>
 </html>

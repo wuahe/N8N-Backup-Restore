@@ -426,6 +426,58 @@ async function backupToGitHub(encryptedData, backupName, sourceEnv) {
   };
 }
 
+// 確保備份文件夾存在
+async function ensureBackupFolder(drive) {
+  try {
+    // 如果環境變數中指定了備份文件夾 ID，直接使用
+    const specifiedFolderId = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID;
+    if (specifiedFolderId) {
+      // 驗證文件夾是否存在且可訪問
+      try {
+        await drive.files.get({
+          fileId: specifiedFolderId,
+          fields: 'id, name'
+        });
+        console.log(`Using specified backup folder ID: ${specifiedFolderId}`);
+        return specifiedFolderId;
+      } catch (error) {
+        console.error(`Specified folder ID ${specifiedFolderId} is not accessible:`, error.message);
+        // 繼續執行下面的邏輯，嘗試創建新文件夾
+      }
+    }
+    
+    const folderName = 'N8N-Backups';
+    
+    // 搜索是否已存在備份文件夾
+    const searchResponse = await drive.files.list({
+      q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name)'
+    });
+    
+    if (searchResponse.data.files.length > 0) {
+      // 文件夾已存在，返回 ID
+      return searchResponse.data.files[0].id;
+    }
+    
+    // 文件夾不存在，創建新文件夾
+    const createResponse = await drive.files.create({
+      requestBody: {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder'
+      },
+      fields: 'id'
+    });
+    
+    console.log(`Created backup folder: ${folderName} (ID: ${createResponse.data.id})`);
+    return createResponse.data.id;
+    
+  } catch (error) {
+    console.error('Error ensuring backup folder:', error);
+    // 如果創建文件夾失敗，返回 null，文件將上傳到根目錄
+    return null;
+  }
+}
+
 // 輔助函數：備份到 Google Drive
 async function backupToGoogleDrive(encryptedData, backupName, sourceEnv) {
   const { google } = require('googleapis');
@@ -445,10 +497,13 @@ async function backupToGoogleDrive(encryptedData, backupName, sourceEnv) {
   const backupContent = JSON.stringify(encryptedData, null, 2);
   const fileName = `${backupName || 'cross-env-backup'}-${sourceEnv.id}-${Date.now()}.json`;
   
+  // 確保備份文件夾存在
+  let folderId = await ensureBackupFolder(drive);
+  
   const response = await drive.files.create({
     requestBody: {
       name: fileName,
-      parents: ['your-backup-folder-id']
+      parents: folderId ? [folderId] : undefined
     },
     media: {
       mimeType: 'application/json',
