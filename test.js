@@ -36,7 +36,7 @@ console.log('\n📦 檢查依賴套件...');
 try {
   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const dependencies = Object.keys(packageJson.dependencies);
-  
+
   dependencies.forEach(dep => {
     try {
       require.resolve(dep);
@@ -74,13 +74,13 @@ console.log('\n🛣️  測試路由模組...');
 try {
   const authRoutes = require('./routes/auth');
   console.log('✅ auth.js - 載入成功');
-  
+
   const backupRoutes = require('./routes/backup');
   console.log('✅ backup.js - 載入成功');
-  
+
   const restoreRoutes = require('./routes/restore');
   console.log('✅ restore.js - 載入成功');
-  
+
   const n8nRoutes = require('./routes/n8n');
   console.log('✅ n8n.js - 載入成功');
 } catch (error) {
@@ -95,12 +95,12 @@ try {
   const express = require('express');
   const app = express();
   console.log('✅ Express 應用創建成功');
-  
+
   // 測試中間件
   const cors = require('cors');
   app.use(cors());
   console.log('✅ CORS 中間件載入成功');
-  
+
   console.log('✅ 服務器代碼驗證通過');
 } catch (error) {
   console.log(`❌ 服務器測試失敗: ${error.message}`);

@@ -3,7 +3,11 @@ const archiver = require('archiver');
 const { Octokit } = require('@octokit/rest');
 const { google } = require('googleapis');
 const crypto = require('crypto');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 const router = express.Router();
+
+const execAsync = promisify(exec);
 
 // GitHub 配置 (需要安裝 @octokit/rest)
 const octokit = process.env.GITHUB_TOKEN ? new Octokit({
@@ -224,34 +228,58 @@ async function prepareBackupData(workflows, credentials, selectedItems, sourceEn
     credentials: []
   };
   
-  // 處理選中的項目
-  if (selectedItems.workflows) {
+  // 確保 workflows 和 credentials 是數組
+  const workflowsArray = Array.isArray(workflows) ? workflows : [];
+  const credentialsArray = Array.isArray(credentials) ? credentials : [];
+  
+  console.log('Preparing backup data:', {
+    inputWorkflows: workflowsArray.length,
+    inputCredentials: credentialsArray.length,
+    selectedWorkflows: selectedItems.workflows?.length || 0,
+    selectedCredentials: selectedItems.credentials?.length || 0
+  });
+  
+  // 處理選中的 workflows
+  if (selectedItems.workflows && Array.isArray(selectedItems.workflows)) {
     for (const workflowId of selectedItems.workflows) {
-      const workflow = workflows.find(w => w.id === workflowId);
+      const workflow = workflowsArray.find(w => w.id === workflowId);
       if (workflow) {
         backupData.workflows.push(workflow);
         
-        // 自動包含相關的 credentials
-        if (workflow.relatedCredentials) {
-          workflow.relatedCredentials.forEach(cred => {
-            if (!backupData.credentials.find(c => c.id === cred.id)) {
-              backupData.credentials.push(cred);
+        // 自動包含相關的 credentials（使用 relatedCredentialIds）
+        if (workflow.relatedCredentialIds && Array.isArray(workflow.relatedCredentialIds)) {
+          workflow.relatedCredentialIds.forEach(credId => {
+            const credential = credentialsArray.find(c => c.id === credId);
+            if (credential && !backupData.credentials.find(c => c.id === credId)) {
+              backupData.credentials.push(credential);
             }
           });
         }
+      } else {
+        console.warn(`Workflow with ID ${workflowId} not found`);
       }
     }
   }
   
   // 處理額外選中的 credentials
-  if (selectedItems.credentials) {
+  if (selectedItems.credentials && Array.isArray(selectedItems.credentials)) {
     for (const credentialId of selectedItems.credentials) {
-      const credential = credentials.find(c => c.id === credentialId);
+      const credential = credentialsArray.find(c => c.id === credentialId);
       if (credential && !backupData.credentials.find(c => c.id === credentialId)) {
         backupData.credentials.push(credential);
+      } else if (!credential) {
+        console.warn(`Credential with ID ${credentialId} not found`);
       }
     }
   }
+  
+  // 調試：記錄備份數據統計
+  console.log('Backup data prepared:', {
+    workflowsCount: backupData.workflows.length,
+    credentialsCount: backupData.credentials.length,
+    selectedWorkflows: selectedItems.workflows?.length || 0,
+    selectedCredentials: selectedItems.credentials?.length || 0
+  });
   
   return backupData;
 }
@@ -284,5 +312,100 @@ function encryptSensitiveData(data) {
   
   return encryptedData;
 }
+
+// 使用 N8N CLI 進行完整備份（包含憑證數據）
+router.post('/cli-export', async (req, res) => {
+  try {
+    const { backupName, destination, includeCredentials } = req.body;
+    
+    console.log('Starting CLI export with credentials...');
+    
+    // 使用 N8N CLI 導出
+    const exportCommand = includeCredentials 
+      ? 'npx n8n export:workflow --all --decrypted --pretty'
+      : 'npx n8n export:workflow --all --pretty';
+    
+    const { stdout, stderr } = await execAsync(exportCommand);
+    
+    if (stderr) {
+      console.warn('CLI export warning:', stderr);
+    }
+    
+    // 解析導出的數據
+    const exportData = JSON.parse(stdout);
+    
+    // 轉換為我們的備份格式
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      version: '1.0',
+      sourceEnvironment: 'default',
+      workflows: exportData,
+      credentials: [], // CLI 導出的憑證數據已經包含在工作流中
+      exportMethod: 'cli',
+      includesCredentialData: includeCredentials
+    };
+    
+    // 如果需要，加密敏感數據
+    const finalData = includeCredentials ? encryptSensitiveData(backupData) : backupData;
+    
+    // 創建備份文件
+    const backupContent = JSON.stringify(finalData, null, 2);
+    const fileName = `${backupName || 'cli-backup'}-${Date.now()}.json`;
+    
+    if (destination === 'googledrive') {
+      // 上傳到 Google Drive
+      let folderId = await ensureBackupFolder();
+      
+      const response = await drive.files.create({
+        requestBody: {
+          name: fileName,
+          parents: folderId ? [folderId] : undefined
+        },
+        media: {
+          mimeType: 'application/json',
+          body: backupContent
+        }
+      });
+      
+      res.json({
+        success: true,
+        message: 'CLI backup uploaded to Google Drive successfully',
+        fileName,
+        fileId: response.data.id,
+        includesCredentialData: includeCredentials,
+        workflowCount: exportData.length
+      });
+      
+    } else if (destination === 'github') {
+      // 上傳到 GitHub
+      const response = await octokit.repos.createOrUpdateFileContents({
+        owner: process.env.GITHUB_REPO_OWNER,
+        repo: process.env.GITHUB_REPO_NAME,
+        path: `backups/${fileName}`,
+        message: `N8N CLI Backup: ${backupName || 'Automated backup'}`,
+        content: Buffer.from(backupContent).toString('base64')
+      });
+      
+      res.json({
+        success: true,
+        message: 'CLI backup uploaded to GitHub successfully',
+        fileName,
+        url: response.data.content.html_url,
+        includesCredentialData: includeCredentials,
+        workflowCount: exportData.length
+      });
+      
+    } else {
+      res.status(400).json({ error: 'Invalid destination' });
+    }
+    
+  } catch (error) {
+    console.error('CLI backup error:', error);
+    res.status(500).json({ 
+      error: 'Failed to perform CLI backup',
+      details: error.message 
+    });
+  }
+});
 
 module.exports = router;

@@ -1,0 +1,1040 @@
+{
+  "timestamp": "2025-08-12T12:48:23.750Z",
+  "version": "1.0",
+  "sourceEnvironment": "default",
+  "workflows": [
+    {
+      "createdAt": "2025-06-11T06:56:15.337Z",
+      "updatedAt": "2025-06-18T04:52:58.000Z",
+      "id": "8XgjkveQTHOAWDpe",
+      "name": "Taipower",
+      "active": false,
+      "isArchived": false,
+      "nodes": [
+        {
+          "parameters": {
+            "operation": "append",
+            "documentId": {
+              "__rl": true,
+              "value": "1KP6DekWv42oZrUiolDt_mSpQErBOJaZsRsK7cm-jWuc",
+              "mode": "list",
+              "cachedResultName": "台電負載監控",
+              "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KP6DekWv42oZrUiolDt_mSpQErBOJaZsRsK7cm-jWuc/edit?usp=drivesdk"
+            },
+            "sheetName": {
+              "__rl": true,
+              "value": 421276640,
+              "mode": "list",
+              "cachedResultName": "機組資料",
+              "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KP6DekWv42oZrUiolDt_mSpQErBOJaZsRsK7cm-jWuc/edit#gid=421276640"
+            },
+            "columns": {
+              "mappingMode": "defineBelow",
+              "value": {
+                "機組名稱": "={{ $json['機組名稱'] }}",
+                "裝置容量 (MW)": "={{ $json['裝置容量 (MW)'] }}",
+                "淨發電量 (MW)": "={{ $json['淨發電量 (MW)'] }}",
+                "淨發電量/裝置容量比 (%)": "={{ $json['淨發電量/裝置容量比 (%)'] }}",
+                "備註": "={{ $json['備註'] }}",
+                "燃料類型": "={{ $json['燃料類型'] }}",
+                "公佈時間": "={{ $json['公佈時間'] }}",
+                "抓取時間": "={{ $json['抓取時間'] }}"
+              },
+              "matchingColumns": [
+                "抓取時間"
+              ],
+              "schema": [
+                {
+                  "id": "公佈時間",
+                  "displayName": "公佈時間",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "燃料類型",
+                  "displayName": "燃料類型",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "機組名稱",
+                  "displayName": "機組名稱",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "裝置容量 (MW)",
+                  "displayName": "裝置容量 (MW)",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "淨發電量 (MW)",
+                  "displayName": "淨發電量 (MW)",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "淨發電量/裝置容量比 (%)",
+                  "displayName": "淨發電量/裝置容量比 (%)",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "備註",
+                  "displayName": "備註",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "抓取時間",
+                  "displayName": "抓取時間",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                }
+              ],
+              "attemptToConvertTypes": false,
+              "convertFieldsToString": false
+            },
+            "options": {}
+          },
+          "id": "bfed722b-a3eb-476c-933d-38b308254e9b",
+          "name": "Google Sheets",
+          "type": "n8n-nodes-base.googleSheets",
+          "position": [
+            680,
+            640
+          ],
+          "typeVersion": 4,
+          "credentials": {
+            "googleSheetsOAuth2Api": {
+              "id": "Bq1qF7SerCbYmppI",
+              "name": "Google Sheets account"
+            }
+          },
+          "onError": "continueErrorOutput"
+        },
+        {
+          "parameters": {
+            "url": "https://www.taipower.com.tw/d006/loadGraph/loadGraph/data/genary.json",
+            "jsonParameters": true,
+            "options": {
+              "splitIntoItems": false
+            }
+          },
+          "id": "d19c4a85-3a95-4bda-bd53-2d452a8f91a7",
+          "name": "HTTP Request1",
+          "type": "n8n-nodes-base.httpRequest",
+          "position": [
+            -120,
+            640
+          ],
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "minutes",
+                  "minutesInterval": 10
+                }
+              ]
+            }
+          },
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1.2,
+          "position": [
+            -500,
+            640
+          ],
+          "id": "94ac6a75-840e-4bdd-a492-8de5aa3f07a5",
+          "name": "Schedule Trigger"
+        },
+        {
+          "parameters": {
+            "fieldToSplitOut": "unit_details",
+            "options": {}
+          },
+          "type": "n8n-nodes-base.splitOut",
+          "typeVersion": 1,
+          "position": [
+            340,
+            640
+          ],
+          "id": "a2bd54b5-7675-4bc2-994a-569d313039ed",
+          "name": "Split Out",
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "content": "各機組發電量\nhttps://www.taipower.com.tw/2289/2363/2367/2368/10266/normalPost\n資料\nhttps://www.taipower.com.tw/d006/loadGraph/loadGraph/data/genary.json\nGoogle Sheet\nhttps://docs.google.com/spreadsheets/d/1KP6DekWv42oZrUiolDt_mSpQErBOJaZsRsK7cm-jWuc/edit?gid=421276640#gid=421276640\n\nhttps://docs.google.com/spreadsheets/d/1uoaujJHjxZYSu3NnRW6maxta4Wwqy2du7WlG8OVQ94M/edit?gid=421276640#gid=421276640",
+            "height": 260,
+            "width": 840
+          },
+          "type": "n8n-nodes-base.stickyNote",
+          "typeVersion": 1,
+          "position": [
+            -160,
+            260
+          ],
+          "id": "6d2106ba-7f0a-42ec-ab80-0031005a0e96",
+          "name": "Sticky Note1"
+        },
+        {
+          "parameters": {
+            "jsCode": "/**\n * n8n Code Node: Taipower Raw Data Cleaner (v2)\n *\n * HOW TO USE:\n * 1. Connect this Code node to a node that outputs the raw JSON data from the Taipower API.\n * 2. Ensure the input data is a single item with a 'json' property containing the raw data.\n *    - Example input from previous node: { json: { \"\": \"2025-06-12 15:30\", \"aaData\": [...] } }\n * 3. Copy and paste all the code from this file into the 'JavaScript' editor of the Code node.\n * 4. The node will output an array of cleaned JSON objects, ready for further use.\n *\n * REVISION 2 CHANGES:\n * - Fixed a crash when accessing input data. Now uses the recommended `$input.item.json`.\n * - Added a fallback for the publication timestamp. If the timestamp key ('') is\n *   missing from the input (as seen in the screenshot), the script will use the\n *   current execution time as the \"公佈時間\" and log a warning.\n * - To get the real publication time, please check your HTTP Request node's settings\n *   to ensure it passes the *full* JSON response, including the empty string key.\n *\n * REVISION 3 CHANGES:\n * - The script now returns a single item containing one JSON object. This object has\n *   a key `unit_details` which holds the array of all cleaned records. This makes\n *   it easier to handle the data in downstream n8n nodes.\n *\n * REVISION 4 CHANGES:\n * - Modified the \"抓取時間\" (fetch_time) to be explicitly set to the \"Asia/Taipei\" timezone.\n *   This ensures the timestamp is correct regardless of the server's location.\n */\n\n// Use the recommended n8n way to access the JSON data of the first input item.\nconst rawData = $input.item.json;\n\n// Check if rawData exists. If not, the previous node might have failed.\nif (!rawData) {\n  console.error(\"Input data is missing. Please check the previous node's output.\");\n  // To prevent the workflow from stopping, we return an empty array.\n  return [];\n}\n\nconst results = [];\nlet current_category = null;\n\n// Helper function to get the current time as a 'YYYY-MM-DD HH:MM' string\n// for the 'Asia/Taipei' timezone.\nfunction getTaipeiTimeString() {\n  const options = {\n    year: 'numeric',\n    month: '2-digit',\n    day: '2-digit',\n    hour: '2-digit',\n    minute: '2-digit',\n    hour12: false,\n    timeZone: 'Asia/Taipei'\n  };\n\n  // Using 'sv-SE' (Swedish) locale is a reliable trick to get the YYYY-MM-DD HH:MM format directly.\n  return new Intl.DateTimeFormat('sv-SE', options).format(new Date());\n}\n\n// Use a single fetch time for all records in this execution, formatted for Taipei Timezone.\nconst fetch_time = getTaipeiTimeString();\n\n// 1. Get and correct the publication timestamp from the raw data.\n// The raw API response contains a key that is an empty string ('') for the timestamp.\nlet publication_timestamp = rawData[''];\n\n// 如果原始資料沒有公佈時間，才用抓取時間補上\nif (!publication_timestamp) {\n  console.warn(\"Publication timestamp ('') not found in input data. Using current Taipei time as a fallback. Please check the preceding HTTP Request node to ensure it passes the full JSON response.\");\n  publication_timestamp = fetch_time;\n}\n\nconst aaData = rawData.aaData || [];\n\nfor (const row of aaData) {\n  // Skip rows that don't have enough columns\n  if (!row || row.length < 6) {\n    continue;\n  }\n\n  // 2. The category is in the first column, wrapped in <b> tags.\n  // This category applies to subsequent rows until a new one is found.\n  const categoryMatch = /<b>([^<]+)<\\/b>/.exec(row[0]);\n  if (categoryMatch && categoryMatch[1]) {\n    current_category = categoryMatch[1];\n  }\n\n  // 3. Skip summary rows which are identified by \"小計\" in the third column.\n  if (row[2] && row[2].includes('小計')) {\n    continue;\n  }\n\n  // 4. Process only the rows that represent an individual power unit.\n  // These are identified by having a non-empty unit name in the third column.\n  const unit_name = row[2];\n  if (unit_name && unit_name.trim() !== '') {\n    try {\n      const capacity_str = row[3] || '0';\n      const generation_str = row[4] || '0';\n      const ratio_str = row[5] || '0';\n      // HTML entities like &amp; might be present and need to be decoded.\n      const status_note = (row[6] || '').replace(/&amp;/g, '&');\n\n      // Clean any residual HTML tags from the strings\n      const cleaned_unit_name = unit_name.replace(/<[^>]+>/g, '');\n      const cleaned_status_note = status_note.replace(/<[^>]+>/g, '');\n\n      // Parse string values into numbers, defaulting to 0 if invalid.\n      const capacity = parseFloat(String(capacity_str).replace(/,/g, '')) || 0;\n      const generation = parseFloat(String(generation_str).replace(/,/g, '')) || 0;\n      const capacity_ratio = parseFloat(String(ratio_str)) || 0; // parseFloat ignores trailing '%'\n\n      // 5. Construct the final JSON object with Chinese keys.\n      const record = {\n        \"公佈時間\": publication_timestamp,\n        \"燃料類型\": current_category,\n        \"機組名稱\": cleaned_unit_name,\n        \"裝置容量 (MW)\": capacity,\n        \"淨發電量 (MW)\": generation,\n        \"淨發電量/裝置容量比 (%)\": capacity_ratio,\n        \"備註\": cleaned_status_note.trim(),\n        \"抓取時間\": fetch_time\n      };\n\n      results.push(record);\n\n    } catch (error) {\n      // Log an error if a row fails to parse, then continue.\n      console.error(`Failed to parse row: ${JSON.stringify(row)}`, error);\n      continue;\n    }\n  }\n}\n\n// Return a single item with a JSON object containing the results array.\n// This is a common n8n pattern for easier data handling in subsequent nodes.\nreturn [{\n  json: {\n    unit_details: results\n  }\n}]; "
+          },
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            120,
+            640
+          ],
+          "id": "0bd0e4a8-ca5c-479a-b35a-cf0501500d93",
+          "name": "Clean json"
+        },
+        {
+          "parameters": {
+            "jsCode": "// 初始化變數\nlet capacitySum = 0;\nlet capacitySumB = 0;  // 裝置容量總和B\nlet generationSum = 0;\nlet weightedSum = 0;\n\n// 取得機組詳細資料\nconst unitDetails = $input.first().json.unit_details;\n\n// 從第一個機組取得公佈時間\nconst publishTime = unitDetails.length > 0 ? unitDetails[0][\"公佈時間\"] : \"無資料\";\n\n// 遍歷所有機組進行計算\nfor (const item of unitDetails) {\n// 裝置容量\nconst capacity = parseFloat(item[\"裝置容量 (MW)\"]) || 0;\ncapacitySum += capacity;\n\n// 淨發電量\nconst generation = parseFloat(item[\"淨發電量 (MW)\"]) || 0;\ngenerationSum += generation;\n\n// 裝置容量總和B 的計算邏輯\nconst remark = item[\"備註\"] || \"\";  // 取得備註欄位\n\n// 計算中文字符數量\nconst chineseCharCount = (remark.match(/[\\u4e00-\\u9fff]/g) || []).length;\n\nif (chineseCharCount >= 2) {\n  // 如果備註有兩個中文字以上，使用淨發電量累計\n  capacitySumB += generation;\n} else {\n  // 如果備註中文字少於兩個，使用裝置容量累計\n  capacitySumB += capacity;\n}\n\n// 淨發電量/裝置容量比 (%) - 轉換為小數\nconst ratio = parseFloat(item[\"淨發電量/裝置容量比 (%)\"]) || 0;\n\n// 計算 裝置容量 × 發電比例\nconst weighted = capacity * (ratio / 100);\nweightedSum += weighted;\n}\n\n// 四捨五入到小數點1位\nconst capacitySumRounded = Math.round(capacitySum * 10) / 10;\nconst capacitySumBRounded = Math.round(capacitySumB * 10) / 10;\nconst generationSumRounded = Math.round(generationSum * 10) / 10;\nconst weightedSumRounded = Math.round(weightedSum * 10) / 10;\n\n// 計算各種備轉容量率\n// 備轉容量率 = (裝置容量總和 - 淨發電量總和) / 淨發電量總和 * 100%\nconst reserveCapacityRate = generationSumRounded > 0 ? \nMath.round(((capacitySumRounded - generationSumRounded) / generationSumRounded * 100) * 10) / 10 : 0;\n\n// 備轉容量率B = (裝置容量總和B - 淨發電量總和) / 淨發電量總和 * 100%\nconst reserveCapacityRateB = generationSumRounded > 0 ? \nMath.round(((capacitySumBRounded - generationSumRounded) / generationSumRounded * 100) * 10) / 10 : 0;\n\n// 加權備轉容量率 = (加權發電量總和 - 淨發電量總和) / 淨發電量總和 * 100%\nconst weightedReserveCapacityRate = generationSumRounded > 0 ? \nMath.round(((weightedSumRounded - generationSumRounded) / generationSumRounded * 100) * 10) / 10 : 0;\n\n// 返回結果\nreturn [\n{\n  json: {\n    \"公佈時間\": publishTime,\n    \"裝置容量總和\": capacitySumRounded,\n    \"裝置容量總和B\": capacitySumBRounded,\n    \"淨發電量總和\": generationSumRounded,\n    \"加權發電量總和\": weightedSumRounded,\n    \"備轉容量率\": reserveCapacityRate,\n    \"備轉容量率B\": reserveCapacityRateB,\n    \"加權備轉容量率\": weightedReserveCapacityRate,\n    \"機組數量\": unitDetails.length\n  }\n}\n];"
+          },
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            360,
+            1060
+          ],
+          "id": "4e715122-212b-4a04-a720-7d1e7fecb146",
+          "name": "Sum json"
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 2
+              },
+              "conditions": [
+                {
+                  "id": "5d17c537-9ba1-4a3e-b8ea-53798d710450",
+                  "leftValue": "={{ $json['淨發電量/裝置容量比 (%)'] }}",
+                  "rightValue": 0.01,
+                  "operator": {
+                    "type": "number",
+                    "operation": "lt"
+                  }
+                },
+                {
+                  "id": "3a1560a0-dff0-414a-9a7a-3e95760dcfe4",
+                  "leftValue": "={{ $json['淨發電量 (MW)'] }}",
+                  "rightValue": 1,
+                  "operator": {
+                    "type": "number",
+                    "operation": "gt"
+                  }
+                },
+                {
+                  "id": "13d98436-fa40-4cad-8546-c6fcedee3fae",
+                  "leftValue": "={{ $json['燃料類型'] }}",
+                  "rightValue": "太陽能(Solar)",
+                  "operator": {
+                    "type": "string",
+                    "operation": "notEquals"
+                  }
+                },
+                {
+                  "id": "8602c6c0-0af3-4567-84d7-ce641f16ed01",
+                  "leftValue": "={{ $json['燃料類型'] }}",
+                  "rightValue": "汽電共生(Co-Gen)",
+                  "operator": {
+                    "type": "string",
+                    "operation": "notEquals"
+                  }
+                },
+                {
+                  "id": "a9a7b698-47c4-453e-8124-a25529bba4ed",
+                  "leftValue": "={{ $json['燃料類型'] }}",
+                  "rightValue": "風力(Wind)",
+                  "operator": {
+                    "type": "string",
+                    "operation": "notEquals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.filter",
+          "typeVersion": 2.2,
+          "position": [
+            680,
+            880
+          ],
+          "id": "20acb88a-85ec-42fd-bc42-731074ff7a2b",
+          "name": "容量比0%"
+        },
+        {
+          "parameters": {
+            "operation": "append",
+            "documentId": {
+              "__rl": true,
+              "value": "1uoaujJHjxZYSu3NnRW6maxta4Wwqy2du7WlG8OVQ94M",
+              "mode": "id"
+            },
+            "sheetName": {
+              "__rl": true,
+              "value": 421276640,
+              "mode": "list",
+              "cachedResultName": "機組資料0%",
+              "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1uoaujJHjxZYSu3NnRW6maxta4Wwqy2du7WlG8OVQ94M/edit#gid=421276640"
+            },
+            "columns": {
+              "mappingMode": "defineBelow",
+              "value": {
+                "公佈時間": "={{ $json['公佈時間'] }}",
+                "燃料類型": "={{ $json['燃料類型'] }}",
+                "機組名稱": "={{ $json['機組名稱'] }}",
+                "裝置容量 (MW)": "={{ $json['裝置容量 (MW)'] }}",
+                "淨發電量 (MW)": "={{ $json['淨發電量 (MW)'] }}",
+                "淨發電量/裝置容量比 (%)": "={{ $json['淨發電量/裝置容量比 (%)'] }}",
+                "備註": "={{ $json['備註'] }}",
+                "抓取時間": "={{ $json['抓取時間'] }}"
+              },
+              "matchingColumns": [],
+              "schema": [
+                {
+                  "id": "公佈時間",
+                  "displayName": "公佈時間",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "燃料類型",
+                  "displayName": "燃料類型",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "機組名稱",
+                  "displayName": "機組名稱",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "裝置容量 (MW)",
+                  "displayName": "裝置容量 (MW)",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "淨發電量 (MW)",
+                  "displayName": "淨發電量 (MW)",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "淨發電量/裝置容量比 (%)",
+                  "displayName": "淨發電量/裝置容量比 (%)",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "備註",
+                  "displayName": "備註",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                },
+                {
+                  "id": "抓取時間",
+                  "displayName": "抓取時間",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true
+                }
+              ],
+              "attemptToConvertTypes": false,
+              "convertFieldsToString": false
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.googleSheets",
+          "typeVersion": 4.6,
+          "position": [
+            900,
+            880
+          ],
+          "id": "39c3bf71-e78b-4a10-899c-17778c92cc7c",
+          "name": "台電負載監控2",
+          "credentials": {
+            "googleSheetsOAuth2Api": {
+              "id": "Bq1qF7SerCbYmppI",
+              "name": "Google Sheets account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "operation": "append",
+            "documentId": {
+              "__rl": true,
+              "value": "1uoaujJHjxZYSu3NnRW6maxta4Wwqy2du7WlG8OVQ94M",
+              "mode": "list",
+              "cachedResultName": "台電負載監控2",
+              "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1uoaujJHjxZYSu3NnRW6maxta4Wwqy2du7WlG8OVQ94M/edit?usp=drivesdk"
+            },
+            "sheetName": {
+              "__rl": true,
+              "value": 1619071921,
+              "mode": "list",
+              "cachedResultName": "備轉容量",
+              "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1uoaujJHjxZYSu3NnRW6maxta4Wwqy2du7WlG8OVQ94M/edit#gid=1619071921"
+            },
+            "columns": {
+              "mappingMode": "autoMapInputData",
+              "value": {},
+              "matchingColumns": [],
+              "schema": [
+                {
+                  "id": "公佈時間",
+                  "displayName": "公佈時間",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "裝置容量總和",
+                  "displayName": "裝置容量總和",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "裝置容量總和B",
+                  "displayName": "裝置容量總和B",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "淨發電量總和",
+                  "displayName": "淨發電量總和",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "加權發電量總和",
+                  "displayName": "加權發電量總和",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "備轉容量率",
+                  "displayName": "備轉容量率",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "備轉容量率B",
+                  "displayName": "備轉容量率B",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "加權備轉容量率",
+                  "displayName": "加權備轉容量率",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                },
+                {
+                  "id": "機組數量",
+                  "displayName": "機組數量",
+                  "required": false,
+                  "defaultMatch": false,
+                  "display": true,
+                  "type": "string",
+                  "canBeUsedToMatch": true,
+                  "removed": false
+                }
+              ],
+              "attemptToConvertTypes": false,
+              "convertFieldsToString": false
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.googleSheets",
+          "typeVersion": 4.6,
+          "position": [
+            580,
+            1060
+          ],
+          "id": "23edfbbb-fef3-4afa-bebb-2eaeccdc72c8",
+          "name": "台電負載監控 備轉",
+          "credentials": {
+            "googleSheetsOAuth2Api": {
+              "id": "Bq1qF7SerCbYmppI",
+              "name": "Google Sheets account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 2
+              },
+              "conditions": [
+                {
+                  "id": "3c4bdce3-f15b-4a08-80c8-a8a4d91c70e6",
+                  "leftValue": "={{ $json['機組名稱'] }}",
+                  "rightValue": "興達#3",
+                  "operator": {
+                    "type": "string",
+                    "operation": "contains"
+                  }
+                },
+                {
+                  "id": "642502e8-e750-498b-b0f5-37d8b2be48ab",
+                  "leftValue": "={{ $json['機組名稱'] }}",
+                  "rightValue": "興達#4",
+                  "operator": {
+                    "type": "string",
+                    "operation": "contains"
+                  }
+                },
+                {
+                  "id": "1fc7fea2-988e-46a3-8efa-663b4f59fc01",
+                  "leftValue": "={{ $json['機組名稱'] }}",
+                  "rightValue": "大林#5",
+                  "operator": {
+                    "type": "string",
+                    "operation": "contains"
+                  }
+                },
+                {
+                  "id": "92b36384-d997-4550-8376-bc126cb676f5",
+                  "leftValue": "={{ $json['機組名稱'] }}",
+                  "rightValue": "興達#1",
+                  "operator": {
+                    "type": "string",
+                    "operation": "contains"
+                  }
+                },
+                {
+                  "id": "fb737ab5-7a6b-4342-998c-3d5afb6c1064",
+                  "leftValue": "={{ $json['機組名稱'] }}",
+                  "rightValue": "興達#2",
+                  "operator": {
+                    "type": "string",
+                    "operation": "contains"
+                  }
+                }
+              ],
+              "combinator": "or"
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.filter",
+          "typeVersion": 2.2,
+          "position": [
+            720,
+            300
+          ],
+          "id": "dea04fa4-16de-4f7b-9f68-ec275d5d5e18",
+          "name": "緊急備用"
+        },
+        {
+          "parameters": {
+            "fromEmail": "albowu@gmail.com",
+            "toEmail": "albowu@gmail.com",
+            "subject": "！！！緊急備用電力設施發電",
+            "emailFormat": "=html",
+            "html": "={{ $json.table }}",
+            "options": {}
+          },
+          "type": "n8n-nodes-base.emailSend",
+          "typeVersion": 2.1,
+          "position": [
+            1420,
+            300
+          ],
+          "id": "6732ebc6-6f0e-449e-827c-d8220c502885",
+          "name": "Send Email1",
+          "webhookId": "11e202b6-e9e4-48d1-b755-2b953c4124a9",
+          "credentials": {
+            "smtp": {
+              "id": "r1xzLw8PLdLERBAx",
+              "name": "SMTP account"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "operation": "convertToHtmlTable",
+            "options": {}
+          },
+          "type": "n8n-nodes-base.html",
+          "typeVersion": 1.2,
+          "position": [
+            1220,
+            280
+          ],
+          "id": "7c73dede-5b9c-4baa-b48f-11cb1360cfea",
+          "name": "HTML1"
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 2
+              },
+              "conditions": [
+                {
+                  "id": "f69be049-9836-40d0-9fc9-22a311768871",
+                  "leftValue": "={{ $json['淨發電量 (MW)'] }}",
+                  "rightValue": 0.1,
+                  "operator": {
+                    "type": "number",
+                    "operation": "gt"
+                  }
+                }
+              ],
+              "combinator": "or"
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2.2,
+          "position": [
+            960,
+            300
+          ],
+          "id": "dd964dc2-b6a7-4e48-bd97-940861d7839e",
+          "name": "If1"
+        },
+        {
+          "parameters": {
+            "fromEmail": "albowu@gmail.com",
+            "toEmail": "albowu@gmail.com",
+            "subject": "備註機組",
+            "emailFormat": "=html",
+            "html": "={{ $json.table }}",
+            "options": {}
+          },
+          "type": "n8n-nodes-base.emailSend",
+          "typeVersion": 2.1,
+          "position": [
+            1380,
+            480
+          ],
+          "id": "5ab9dd30-4905-4118-a3f8-db5ea67a990d",
+          "name": "Send Email2",
+          "webhookId": "11e202b6-e9e4-48d1-b755-2b953c4124a9",
+          "credentials": {
+            "smtp": {
+              "id": "r1xzLw8PLdLERBAx",
+              "name": "SMTP account"
+            }
+          },
+          "disabled": true
+        },
+        {
+          "parameters": {
+            "operation": "convertToHtmlTable",
+            "options": {}
+          },
+          "type": "n8n-nodes-base.html",
+          "typeVersion": 1.2,
+          "position": [
+            1180,
+            460
+          ],
+          "id": "aa8d35fd-3b70-4732-92f5-4b1c38d5110b",
+          "name": "HTML2"
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 2
+              },
+              "conditions": [
+                {
+                  "id": "012a4c3b-9e8b-4c00-b530-cc4fee12a9d3",
+                  "leftValue": "={{ $json['機組名稱'] }}",
+                  "rightValue": "註",
+                  "operator": {
+                    "type": "string",
+                    "operation": "contains"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.filter",
+          "typeVersion": 2.2,
+          "position": [
+            700,
+            480
+          ],
+          "id": "1a55e260-6b95-43d9-83ec-209ae179eafd",
+          "name": "備註機組1"
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 2
+              },
+              "conditions": [
+                {
+                  "id": "f69be049-9836-40d0-9fc9-22a311768871",
+                  "leftValue": "={{ $json['淨發電量 (MW)'] }}",
+                  "rightValue": 0.1,
+                  "operator": {
+                    "type": "number",
+                    "operation": "gt"
+                  }
+                }
+              ],
+              "combinator": "or"
+            },
+            "options": {}
+          },
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2.2,
+          "position": [
+            920,
+            480
+          ],
+          "id": "0a623512-4b11-4476-820b-ac6cd329db44",
+          "name": "If2"
+        },
+        {
+          "parameters": {
+            "unit": "minutes"
+          },
+          "type": "n8n-nodes-base.wait",
+          "typeVersion": 1.1,
+          "position": [
+            -320,
+            640
+          ],
+          "id": "a9126b84-5f0d-4a42-b981-5ff1a779dd0c",
+          "name": "Wait",
+          "webhookId": "a97fe53a-1f0a-47b1-bf78-a2e144dc2fa6"
+        }
+      ],
+      "connections": {
+        "HTTP Request1": {
+          "main": [
+            [
+              {
+                "node": "Clean json",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Google Sheets": {
+          "main": [
+            []
+          ]
+        },
+        "Schedule Trigger": {
+          "main": [
+            [
+              {
+                "node": "Wait",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Split Out": {
+          "main": [
+            [
+              {
+                "node": "Google Sheets",
+                "type": "main",
+                "index": 0
+              },
+              {
+                "node": "容量比0%",
+                "type": "main",
+                "index": 0
+              },
+              {
+                "node": "備註機組1",
+                "type": "main",
+                "index": 0
+              },
+              {
+                "node": "緊急備用",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Clean json": {
+          "main": [
+            [
+              {
+                "node": "Split Out",
+                "type": "main",
+                "index": 0
+              },
+              {
+                "node": "Sum json",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Sum json": {
+          "main": [
+            [
+              {
+                "node": "台電負載監控 備轉",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "容量比0%": {
+          "main": [
+            [
+              {
+                "node": "台電負載監控2",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "緊急備用": {
+          "main": [
+            [
+              {
+                "node": "If1",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "HTML1": {
+          "main": [
+            [
+              {
+                "node": "Send Email1",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "If1": {
+          "main": [
+            [
+              {
+                "node": "HTML1",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "HTML2": {
+          "main": [
+            [
+              {
+                "node": "Send Email2",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "備註機組1": {
+          "main": [
+            [
+              {
+                "node": "If2",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "If2": {
+          "main": [
+            [
+              {
+                "node": "HTML2",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Wait": {
+          "main": [
+            [
+              {
+                "node": "HTTP Request1",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "settings": {
+        "executionOrder": "v1"
+      },
+      "staticData": {
+        "node:Schedule Trigger": {
+          "recurrenceRules": []
+        }
+      },
+      "meta": {
+        "templateCredsSetupCompleted": true
+      },
+      "pinData": {},
+      "versionId": "8b6971fd-ced4-408c-aacf-d615adbd01f3",
+      "triggerCount": 1,
+      "tags": [],
+      "relatedCredentialIds": [
+        "Bq1qF7SerCbYmppI",
+        "r1xzLw8PLdLERBAx"
+      ],
+      "relatedCredentials": [
+        {
+          "id": "Bq1qF7SerCbYmppI",
+          "name": "Google Sheets account",
+          "type": "googleSheetsOAuth2Api"
+        },
+        {
+          "id": "r1xzLw8PLdLERBAx",
+          "name": "SMTP account",
+          "type": "smtp"
+        }
+      ]
+    }
+  ],
+  "credentials": [
+    {
+      "id": "Bq1qF7SerCbYmppI",
+      "name": "Google Sheets account",
+      "type": "googleSheetsOAuth2Api",
+      "usedInWorkflows": 4
+    },
+    {
+      "id": "r1xzLw8PLdLERBAx",
+      "name": "SMTP account",
+      "type": "smtp",
+      "usedInWorkflows": 2
+    }
+  ]
+}

@@ -141,7 +141,7 @@ router.post('/github', async (req, res) => {
     const decryptedData = decryptSensitiveData(backupData);
     
     // 執行還原
-    const result = await performRestore(decryptedData, selectedItems, restoreMode);
+    const result = await performRestore(decryptedData, selectedItems, restoreMode, n8nApi);
     
     res.json({
       success: true,
@@ -158,7 +158,7 @@ router.post('/github', async (req, res) => {
 // 從 Google Drive 還原
 router.post('/googledrive', async (req, res) => {
   try {
-    const { fileId, selectedItems, restoreMode, targetEnvironment } = req.body;
+    const { fileId, selectedItems, restoreMode, targetEnvironment, credentialMapping } = req.body;
     const envId = targetEnvironment || 'default';
     const n8nApi = createN8nApi(envId);
     
@@ -178,11 +178,20 @@ router.post('/googledrive', async (req, res) => {
       throw new Error('Invalid backup data format from Google Drive');
     }
     
+    // 調試：記錄備份數據結構
+    console.log('Restore - Backup data structure:', {
+      hasWorkflows: !!backupData.workflows,
+      workflowsLength: backupData.workflows ? backupData.workflows.length : 0,
+      hasCredentials: !!backupData.credentials,
+      credentialsLength: backupData.credentials ? backupData.credentials.length : 0,
+      selectedItems: selectedItems
+    });
+    
     // 解密數據
     const decryptedData = decryptSensitiveData(backupData);
     
     // 執行還原
-    const result = await performRestore(decryptedData, selectedItems, restoreMode);
+    const result = await performRestore(decryptedData, selectedItems, restoreMode, n8nApi, credentialMapping);
     
     res.json({
       success: true,
@@ -255,17 +264,30 @@ router.get('/googledrive/preview/:fileId', async (req, res) => {
       throw new Error('Invalid backup data format from Google Drive');
     }
     
+    // 調試：記錄備份數據結構
+    console.log('Backup data structure:', {
+      hasWorkflows: !!backupData.workflows,
+      workflowsLength: backupData.workflows ? backupData.workflows.length : 0,
+      hasCredentials: !!backupData.credentials,
+      credentialsLength: backupData.credentials ? backupData.credentials.length : 0,
+      keys: Object.keys(backupData)
+    });
+    
+    // 確保 workflows 和 credentials 數組存在
+    const workflows = backupData.workflows || [];
+    const credentials = backupData.credentials || [];
+    
     // 返回預覽信息（不包含敏感數據）
     const preview = {
       timestamp: backupData.timestamp,
       version: backupData.version,
-      workflows: backupData.workflows.map(w => ({
+      workflows: workflows.map(w => ({
         id: w.id,
         name: w.name,
         active: w.active,
         tags: w.tags
       })),
-      credentials: backupData.credentials.map(c => ({
+      credentials: credentials.map(c => ({
         id: c.id,
         name: c.name,
         type: c.type
@@ -280,7 +302,7 @@ router.get('/googledrive/preview/:fileId', async (req, res) => {
 });
 
 // 輔助函數：執行還原
-async function performRestore(backupData, selectedItems, restoreMode) {
+async function performRestore(backupData, selectedItems, restoreMode, n8nApi, credentialMapping = {}) {
   const results = {
     workflows: { success: [], failed: [] },
     credentials: { success: [], failed: [] }
@@ -293,6 +315,19 @@ async function performRestore(backupData, selectedItems, restoreMode) {
         const credential = backupData.credentials.find(c => c.id === credentialId);
         if (credential) {
           try {
+            // 檢查是否有憑證映射（用現有憑證替代）
+            const mappedCredentialId = credentialMapping[credentialId];
+            if (mappedCredentialId) {
+              console.log(`使用映射憑證: ${credential.name} -> ${mappedCredentialId}`);
+              results.credentials.success.push({
+                id: credential.id,
+                name: credential.name,
+                action: 'mapped',
+                mappedTo: mappedCredentialId
+              });
+              continue;
+            }
+            
             // 檢查是否已存在
             let existingCredential = null;
             try {
@@ -311,16 +346,68 @@ async function performRestore(backupData, selectedItems, restoreMode) {
               continue;
             }
             
-            // 準備 credential 數據
+            // 檢查是否為敏感 credential 類型
+            const sensitiveTypes = [
+              'googleSheetsOAuth2Api', 'googleDriveOAuth2Api', 'gmailOAuth2',
+              'slackOAuth2Api', 'microsoftGraphOAuth2Api', 'githubOAuth2Api',
+              'dropboxOAuth2Api', 'facebookGraphApi', 'twitterOAuth1Api'
+            ];
+            
+            const isSensitive = sensitiveTypes.includes(credential.type);
+            
+            // 檢查是否啟用自動還原敏感憑證（從環境變數或請求參數）
+            const autoRestoreSensitive = process.env.AUTO_RESTORE_SENSITIVE_CREDENTIALS === 'true' || 
+                                       restoreMode === 'force_all';
+            
+            // 對於敏感 credentials，根據設置決定是否跳過
+            if (isSensitive && !autoRestoreSensitive && (!credential.data || Object.keys(credential.data).length === 0)) {
+              results.credentials.failed.push({
+                id: credential.id,
+                name: credential.name,
+                error: '敏感憑證需要手動重新配置（安全模式）',
+                requiresManualSetup: true,
+                canForceRestore: true
+              });
+              continue;
+            }
+            
+            // 如果是敏感憑證但選擇強制還原，添加警告
+            if (isSensitive && autoRestoreSensitive) {
+              console.warn(`⚠️  強制還原敏感憑證: ${credential.name} (${credential.type})`);
+            }
+            
+            // 準備 credential 數據 - N8N API 格式
+            let credentialDataToRestore = credential.data || {};
+            
+            // 為不同類型的憑證添加默認字段
+            if (credential.type === 'smtp') {
+              credentialDataToRestore = {
+                host: credentialDataToRestore.host || '',
+                port: credentialDataToRestore.port || 587,
+                secure: credentialDataToRestore.secure || false,
+                disableStartTls: credentialDataToRestore.disableStartTls || false,
+                user: credentialDataToRestore.user || '',
+                password: credentialDataToRestore.password || '',
+                ...credentialDataToRestore
+              };
+            }
+            
             const credentialData = {
               name: credential.name,
               type: credential.type,
-              data: credential.data
+              data: credentialDataToRestore,
+              // N8N 可能需要的額外字段
+              nodesAccess: credential.nodesAccess || [
+                {
+                  nodeType: credential.type,
+                  user: 'owner'
+                }
+              ]
             };
             
             if (existingCredential && restoreMode === 'overwrite') {
-              // 更新現有 credential
-              await n8nApi.patch(`/api/v1/credentials/${credential.id}`, credentialData);
+              // 更新現有 credential - 使用 PUT 方法
+              await n8nApi.put(`/api/v1/credentials/${credential.id}`, credentialData);
               results.credentials.success.push({
                 id: credential.id,
                 name: credential.name,
@@ -336,10 +423,15 @@ async function performRestore(backupData, selectedItems, restoreMode) {
               });
             }
           } catch (error) {
+            console.error(`Failed to restore credential ${credential.name}:`, error.message);
+            if (error.response) {
+              console.error('Response data:', error.response.data);
+              console.error('Response status:', error.response.status);
+            }
             results.credentials.failed.push({
               id: credential.id,
               name: credential.name,
-              error: error.message
+              error: error.response?.data?.message || error.message
             });
           }
         }
@@ -370,38 +462,54 @@ async function performRestore(backupData, selectedItems, restoreMode) {
               continue;
             }
             
-            // 準備 workflow 數據
+            // 準備 workflow 數據 - 排除只讀字段
             const workflowData = {
               name: workflow.name,
               nodes: workflow.nodes,
               connections: workflow.connections,
-              active: workflow.active,
-              settings: workflow.settings,
-              tags: workflow.tags
+              settings: workflow.settings
+              // 注意：active 和 tags 字段是只讀的，需要單獨處理
             };
             
+            let workflowId;
+            let action;
+            
             if (existingWorkflow && restoreMode === 'overwrite') {
-              // 更新現有 workflow
-              await n8nApi.patch(`/api/v1/workflows/${workflow.id}`, workflowData);
-              results.workflows.success.push({
-                id: workflow.id,
-                name: workflow.name,
-                action: 'updated'
-              });
+              // 更新現有 workflow - 使用 PUT 方法
+              await n8nApi.put(`/api/v1/workflows/${workflow.id}`, workflowData);
+              workflowId = workflow.id;
+              action = 'updated';
             } else {
               // 創建新 workflow
               const response = await n8nApi.post('/api/v1/workflows', workflowData);
-              results.workflows.success.push({
-                id: response.data.id,
-                name: workflow.name,
-                action: 'created'
-              });
+              workflowId = response.data.id;
+              action = 'created';
             }
+            
+            // 單獨處理 active 狀態
+            if (workflow.active) {
+              try {
+                await n8nApi.post(`/api/v1/workflows/${workflowId}/activate`);
+              } catch (activateError) {
+                console.warn(`Failed to activate workflow ${workflow.name}:`, activateError.message);
+              }
+            }
+            
+            results.workflows.success.push({
+              id: workflowId,
+              name: workflow.name,
+              action: action
+            });
           } catch (error) {
+            console.error(`Failed to restore workflow ${workflow.name}:`, error.message);
+            if (error.response) {
+              console.error('Response data:', error.response.data);
+              console.error('Response status:', error.response.status);
+            }
             results.workflows.failed.push({
               id: workflow.id,
               name: workflow.name,
-              error: error.message
+              error: error.response?.data?.message || error.message
             });
           }
         }

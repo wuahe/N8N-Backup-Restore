@@ -98,6 +98,29 @@
                                         <option value="googledrive">Google Drive</option>
                                     </select>
                                 </div>
+                                
+                                <div class="form-group">
+                                    <label for="backupMethod">備份方式</label>
+                                    <select id="backupMethod" onchange="handleBackupMethodChange()">
+                                        <option value="api">API 備份（安全，不含敏感憑證數據）</option>
+                                        <option value="cli">CLI 備份（包含完整憑證數據）</option>
+                                    </select>
+                                    <small class="form-help">CLI 備份需要 N8N CLI 工具，可以包含完整的憑證數據</small>
+                                </div>
+                                
+                                <div class="credential-data-warning" id="credentialDataWarning" style="display: none;">
+                                    <div class="warning-box">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <strong>注意：</strong>CLI 備份會包含完整的憑證數據（包括 tokens、密碼等敏感信息）。
+                                        請確保備份文件的安全性，建議僅在安全環境中使用。
+                                    </div>
+                                    <div class="form-group">
+                                        <label>
+                                            <input type="checkbox" id="includeCredentialData">
+                                            包含憑證數據（⚠️ 高風險）
+                                        </label>
+                                    </div>
+                                </div>
                                 <div class="form-group">
                                     <label class="smart-toggle-label">
                                         <input type="checkbox" id="smartSelectionToggle" checked>
@@ -236,6 +259,43 @@
                                 <h3><i class="fas fa-list-check"></i> 選擇要還原的項目</h3>
                                 <div id="restoreItemsSelection">
                                     <!-- 動態載入的還原項目 -->
+                                </div>
+                                
+                                <!-- 敏感憑證處理選項 -->
+                                <div class="sensitive-credentials-options" id="sensitiveCredentialsOptions" style="display: none;">
+                                    <h4><i class="fas fa-shield-alt"></i> 敏感憑證處理</h4>
+                                    <div class="credential-mode-selection">
+                                        <label class="radio-option">
+                                            <input type="radio" name="sensitiveCredentialMode" value="skip" checked>
+                                            <span>跳過敏感憑證（推薦）</span>
+                                            <small>敏感憑證需要手動重新配置</small>
+                                        </label>
+                                        <label class="radio-option">
+                                            <input type="radio" name="sensitiveCredentialMode" value="map">
+                                            <span>使用憑證映射</span>
+                                            <small>將備份憑證映射到現有憑證</small>
+                                        </label>
+                                        <label class="radio-option">
+                                            <input type="radio" name="sensitiveCredentialMode" value="force">
+                                            <span>⚠️ 強制還原（高風險）</span>
+                                            <small>直接還原敏感憑證數據</small>
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="credential-mapping-section" id="credentialMappingSection" style="display: none;">
+                                        <h5>憑證映射配置</h5>
+                                        <div id="credentialMappingList">
+                                            <!-- 動態生成的映射項目 -->
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline" onclick="addCredentialMapping()">
+                                            <i class="fas fa-plus"></i> 添加映射
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="force-warning" id="forceRestoreWarning" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <strong>警告：</strong>強制還原敏感憑證可能導致安全風險。請確保在安全環境中操作。
+                                    </div>
                                 </div>
                                 
                                 <div class="restore-actions">
@@ -382,6 +442,13 @@
                 startRestoreBtn.addEventListener('click', handleRestore);
             }
 
+            // 敏感憑證模式變化
+            document.addEventListener('change', function(e) {
+                if (e.target.name === 'sensitiveCredentialMode') {
+                    handleSensitiveCredentialModeChange();
+                }
+            });
+            
             // 鍵盤快捷鍵
             document.addEventListener('keydown', handleKeyboardShortcuts);
         });
@@ -1006,6 +1073,13 @@ ${preview.credentials.map(c => `- ${c.name} (${c.type})`).join('\n')}
         function renderRestoreItemsSelection(preview) {
             const container = document.getElementById('restoreItemsSelection');
             
+            // 檢測敏感憑證
+            const sensitiveTypes = ['googleSheetsOAuth2Api', 'googleDriveOAuth2Api', 'gmailOAuth2', 'slackOAuth2Api'];
+            const sensitiveCredentials = preview.credentials.filter(cred => 
+                sensitiveTypes.includes(cred.type)
+            );
+            const hasSensitiveCredentials = sensitiveCredentials.length > 0;
+            
             container.innerHTML = `
                 <div class="items-selection">
                     <div class="selection-section">
@@ -1045,6 +1119,7 @@ ${preview.credentials.map(c => `- ${c.name} (${c.type})`).join('\n')}
                                 <i class="fas fa-key"></i>
                                 Credentials
                                 <span class="item-count">${preview.credentials.length}</span>
+                                ${hasSensitiveCredentials ? '<span class="sensitive-badge">⚠️ 包含敏感憑證</span>' : ''}
                             </h3>
                             <div class="selection-controls">
                                 <button class="btn btn-sm" onclick="selectAllRestoreItems('credentials', true)">全選</button>
@@ -1052,21 +1127,43 @@ ${preview.credentials.map(c => `- ${c.name} (${c.type})`).join('\n')}
                             </div>
                         </div>
                         <div class="items-list">
-                            ${preview.credentials.map(credential => `
-                                <div class="item-checkbox">
-                                    <input type="checkbox" id="restore-credential-${credential.id}" value="${credential.id}" data-type="restore-credential" checked>
-                                    <div class="item-info">
-                                        <div class="item-name">${credential.name}</div>
-                                        <div class="item-details">
-                                            <span>類型: ${credential.type}</span>
+                            ${preview.credentials.map(credential => {
+                                const isSensitive = sensitiveTypes.includes(credential.type);
+                                return `
+                                    <div class="item-checkbox ${isSensitive ? 'sensitive-credential' : ''}">
+                                        <input type="checkbox" id="restore-credential-${credential.id}" value="${credential.id}" data-type="restore-credential" checked>
+                                        <div class="item-info">
+                                            <div class="item-name">
+                                                ${credential.name}
+                                                ${isSensitive ? '<i class="fas fa-shield-alt sensitive-icon" title="敏感憑證"></i>' : ''}
+                                            </div>
+                                            <div class="item-details">
+                                                <span>類型: ${credential.type}</span>
+                                                ${isSensitive ? '<span class="sensitive-warning">需要特殊處理</span>' : ''}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            `).join('')}
+                                `;
+                            }).join('')}
                         </div>
                     </div>
                 </div>
             `;
+            
+            // 如果有敏感憑證，顯示處理選項
+            if (hasSensitiveCredentials) {
+                document.getElementById('sensitiveCredentialsOptions').style.display = 'block';
+                
+                // 預填充敏感憑證映射
+                sensitiveCredentials.forEach(cred => {
+                    addCredentialMapping();
+                    const lastMapping = document.querySelector('.credential-mapping-item:last-child');
+                    if (lastMapping) {
+                        lastMapping.querySelector('.source-credential').value = cred.id;
+                        lastMapping.querySelector('.source-credential').placeholder = `${cred.name} (${cred.type})`;
+                    }
+                });
+            }
             
             // 啟用還原按鈕
             document.getElementById('startRestoreBtn').disabled = false;
@@ -1101,6 +1198,21 @@ ${preview.credentials.map(c => `- ${c.name} (${c.type})`).join('\n')}
                 return;
             }
             
+            // 獲取敏感憑證處理模式
+            const sensitiveMode = document.querySelector('input[name="sensitiveCredentialMode"]:checked')?.value || 'skip';
+            
+            // 獲取憑證映射
+            const credentialMapping = {};
+            if (sensitiveMode === 'map') {
+                document.querySelectorAll('.credential-mapping-item').forEach(item => {
+                    const source = item.querySelector('.source-credential')?.value;
+                    const target = item.querySelector('.target-credential')?.value;
+                    if (source && target) {
+                        credentialMapping[source] = target;
+                    }
+                });
+            }
+            
             try {
                 showLoading('正在還原...');
                 
@@ -1110,8 +1222,9 @@ ${preview.credentials.map(c => `- ${c.name} (${c.type})`).join('\n')}
                         workflows: selectedWorkflows,
                         credentials: selectedCredentials
                     },
-                    restoreMode,
-                    targetEnvironment: targetEnv
+                    restoreMode: sensitiveMode === 'force' ? 'force_all' : restoreMode,
+                    targetEnvironment: targetEnv,
+                    credentialMapping: credentialMapping
                 };
                 
                 const response = await fetch(`/api/restore/${selectedBackup.source}`, {
@@ -1129,13 +1242,7 @@ ${preview.credentials.map(c => `- ${c.name} (${c.type})`).join('\n')}
                     showNotification('還原完成', 'success');
                     
                     // 顯示詳細結果
-                    const summary = `
-還原結果:
-Workflows - 成功: ${result.result.workflows.success.length}, 失敗: ${result.result.workflows.failed.length}
-Credentials - 成功: ${result.result.credentials.success.length}, 失敗: ${result.result.credentials.failed.length}
-                    `;
-                    
-                    console.log('Restore result:', result.result);
+                    showRestoreResults(result.result);
                     
                     // 重新載入數據
                     loadInitialData();
@@ -1147,6 +1254,48 @@ Credentials - 成功: ${result.result.credentials.success.length}, 失敗: ${res
                 showNotification('還原失敗，請檢查網路連接', 'error');
             } finally {
                 hideLoading();
+            }
+        }
+        
+        // 添加憑證映射項目
+        function addCredentialMapping() {
+            const container = document.getElementById('credentialMappingList');
+            const mappingDiv = document.createElement('div');
+            mappingDiv.className = 'credential-mapping-item';
+            mappingDiv.innerHTML = `
+                <div class="mapping-row">
+                    <input type="text" class="source-credential" placeholder="備份憑證 ID">
+                    <span class="mapping-arrow">→</span>
+                    <input type="text" class="target-credential" placeholder="目標憑證 ID">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeCredentialMapping(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(mappingDiv);
+        }
+        
+        // 移除憑證映射項目
+        function removeCredentialMapping(button) {
+            button.closest('.credential-mapping-item').remove();
+        }
+        
+        // 處理敏感憑證模式變化
+        function handleSensitiveCredentialModeChange() {
+            const mode = document.querySelector('input[name="sensitiveCredentialMode"]:checked')?.value;
+            const mappingSection = document.getElementById('credentialMappingSection');
+            const forceWarning = document.getElementById('forceRestoreWarning');
+            
+            // 顯示/隱藏相應的選項
+            if (mode === 'map') {
+                mappingSection.style.display = 'block';
+                forceWarning.style.display = 'none';
+            } else if (mode === 'force') {
+                mappingSection.style.display = 'none';
+                forceWarning.style.display = 'block';
+            } else {
+                mappingSection.style.display = 'none';
+                forceWarning.style.display = 'none';
             }
         }
 
@@ -1165,24 +1314,112 @@ Credentials - 成功: ${result.result.credentials.success.length}, 失敗: ${res
             return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
         }
 
+        // 添加備份進度指示
+        function showBackupProgress(message) {
+            const existingProgress = document.querySelector('.backup-progress');
+            if (existingProgress) {
+                existingProgress.remove();
+            }
+            
+            const progress = document.createElement('div');
+            progress.className = 'backup-progress';
+            progress.innerHTML = `
+                <div class="progress-content">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            const backupActions = document.querySelector('.backup-actions');
+            if (backupActions) {
+                backupActions.appendChild(progress);
+            }
+        }
+
+        // 處理備份方式變化
+        function handleBackupMethodChange() {
+            const method = document.getElementById('backupMethod').value;
+            const warning = document.getElementById('credentialDataWarning');
+            
+            if (method === 'cli') {
+                warning.style.display = 'block';
+            } else {
+                warning.style.display = 'none';
+            }
+        }
+        
         // 處理備份
         async function handleBackup() {
             const backupName = document.getElementById('backupName').value;
             const destination = document.getElementById('backupDestination').value;
+            const method = document.getElementById('backupMethod').value;
             
-            // 獲取選中的項目
+            // CLI 備份方式
+            if (method === 'cli') {
+                const includeCredentials = document.getElementById('includeCredentialData').checked;
+                
+                if (includeCredentials && !confirm('⚠️ 警告：您即將創建包含敏感憑證數據的備份。這可能帶來安全風險。\n\n請確保：\n1. 備份文件將存儲在安全位置\n2. 您了解相關的安全風險\n3. 您有權限訪問這些敏感數據\n\n是否繼續？')) {
+                    return;
+                }
+                
+                try {
+                    showLoading('正在使用 CLI 進行備份...');
+                    showBackupProgress('執行 N8N CLI 導出...');
+                    
+                    const response = await fetch('/api/backup/cli-export', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}`
+                        },
+                        body: JSON.stringify({
+                            backupName: backupName || `cli-backup-${new Date().toISOString().split('T')[0]}`,
+                            destination,
+                            includeCredentials
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showNotification(`CLI 備份成功！已備份 ${result.workflowCount} 個工作流`, 'success');
+                        
+                        // 顯示備份成功信息
+                        showBackupSuccess(result, result.fileName, destination, result.workflowCount, 0);
+                        
+                        // 清空表單
+                        document.getElementById('backupName').value = '';
+                        document.getElementById('includeCredentialData').checked = false;
+                    } else {
+                        showNotification(result.error || 'CLI 備份失敗', 'error');
+                    }
+                } catch (error) {
+                    console.error('CLI Backup error:', error);
+                    showNotification('CLI 備份失敗，請檢查 N8N CLI 是否正確安裝', 'error');
+                } finally {
+                    hideLoading();
+                    const progress = document.querySelector('.backup-progress');
+                    if (progress) progress.remove();
+                }
+                return;
+            }
+            
+            // API 備份方式（原有邏輯）
             const selectedWorkflows = Array.from(document.querySelectorAll('input[data-type="workflow"]:checked'))
                 .map(cb => cb.value);
             const selectedCredentials = Array.from(document.querySelectorAll('input[data-type="credential"]:checked'))
                 .map(cb => cb.value);
             
             if (selectedWorkflows.length === 0 && selectedCredentials.length === 0) {
-                showNotification('請至少選擇一個項目進行備份', 'warning');
+                showSmartBackupSuggestion();
                 return;
             }
             
             try {
                 showLoading('正在備份...');
+                showBackupProgress('準備備份數據...');
+                
+                const finalBackupName = backupName || `backup-${new Date().toISOString().split('T')[0]}`;
                 
                 const backupData = {
                     workflows,
@@ -1191,9 +1428,11 @@ Credentials - 成功: ${result.result.credentials.success.length}, 失敗: ${res
                         workflows: selectedWorkflows,
                         credentials: selectedCredentials
                     },
-                    backupName: backupName || `backup-${new Date().toISOString().split('T')[0]}`,
+                    backupName: finalBackupName,
                     sourceEnvironment: 'default'
                 };
+                
+                showBackupProgress(`上傳到 ${destination.toUpperCase()}...`);
                 
                 const response = await fetch(`/api/backup/${destination}`, {
                     method: 'POST',
@@ -1207,7 +1446,11 @@ Credentials - 成功: ${result.result.credentials.success.length}, 失敗: ${res
                 const result = await response.json();
                 
                 if (result.success) {
-                    showNotification(`備份成功上傳到 ${destination.toUpperCase()}`, 'success');
+                    showNotification(`備份成功！文件已上傳到 ${destination.toUpperCase()}`, 'success');
+                    
+                    // 顯示備份成功的詳細信息
+                    showBackupSuccess(result, finalBackupName, destination, selectedWorkflows.length, selectedCredentials.length);
+                    
                     // 清空表單
                     document.getElementById('backupName').value = '';
                     selectAllWorkflows(false);
@@ -1220,7 +1463,266 @@ Credentials - 成功: ${result.result.credentials.success.length}, 失敗: ${res
                 showNotification('備份失敗，請檢查網路連接', 'error');
             } finally {
                 hideLoading();
+                // 移除進度指示
+                const progress = document.querySelector('.backup-progress');
+                if (progress) {
+                    progress.remove();
+                }
             }
+        }
+
+        // 顯示還原結果
+        function showRestoreResults(results) {
+            const modal = document.createElement('div');
+            modal.className = 'restore-results-modal';
+            modal.innerHTML = `
+                <div class="modal-overlay" onclick="closeRestoreResults()"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3><i class="fas fa-check-circle"></i> 還原完成</h3>
+                        <button class="modal-close" onclick="closeRestoreResults()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="results-summary">
+                            <div class="result-section">
+                                <h4><i class="fas fa-project-diagram"></i> Workflows</h4>
+                                <div class="result-stats">
+                                    <span class="success-count">成功: ${results.workflows.success.length}</span>
+                                    <span class="failed-count">失敗: ${results.workflows.failed.length}</span>
+                                </div>
+                                ${results.workflows.success.length > 0 ? `
+                                    <div class="success-items">
+                                        <h5>成功還原的 Workflows:</h5>
+                                        <ul>
+                                            ${results.workflows.success.map(w => `
+                                                <li><i class="fas fa-check text-success"></i> ${w.name} (${w.action})</li>
+                                            `).join('')}
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                                ${results.workflows.failed.length > 0 ? `
+                                    <div class="failed-items">
+                                        <h5>失敗的 Workflows:</h5>
+                                        <ul>
+                                            ${results.workflows.failed.map(w => `
+                                                <li><i class="fas fa-times text-error"></i> ${w.name}: ${w.error}</li>
+                                            `).join('')}
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            
+                            <div class="result-section">
+                                <h4><i class="fas fa-key"></i> Credentials</h4>
+                                <div class="result-stats">
+                                    <span class="success-count">成功: ${results.credentials.success.length}</span>
+                                    <span class="failed-count">失敗: ${results.credentials.failed.length}</span>
+                                </div>
+                                ${results.credentials.success.length > 0 ? `
+                                    <div class="success-items">
+                                        <h5>成功還原的 Credentials:</h5>
+                                        <ul>
+                                            ${results.credentials.success.map(c => `
+                                                <li><i class="fas fa-check text-success"></i> ${c.name} (${c.action})</li>
+                                            `).join('')}
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                                ${results.credentials.failed.length > 0 ? `
+                                    <div class="failed-items">
+                                        <h5>需要手動配置的 Credentials:</h5>
+                                        <ul>
+                                            ${results.credentials.failed.map(c => `
+                                                <li>
+                                                    <i class="fas fa-exclamation-triangle text-warning"></i> 
+                                                    ${c.name}: ${c.requiresManualSetup ? '需要手動重新配置敏感信息' : c.error}
+                                                </li>
+                                            `).join('')}
+                                        </ul>
+                                        <div class="manual-setup-note">
+                                            <i class="fas fa-info-circle"></i>
+                                            <strong>注意:</strong> 出於安全考慮，包含敏感信息的憑證（如 OAuth tokens）需要您手動重新配置。
+                                            請前往 N8N 的 Credentials 頁面重新設置這些憑證。
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" onclick="closeRestoreResults()">確定</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+
+        // 關閉還原結果模態框
+        function closeRestoreResults() {
+            const modal = document.querySelector('.restore-results-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        // 顯示備份成功信息
+        function showBackupSuccess(result, backupName, destination, workflowCount, credentialCount) {
+            const modal = document.createElement('div');
+            modal.className = 'backup-success-modal';
+            modal.innerHTML = `
+                <div class="modal-overlay" onclick="closeBackupSuccess()"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3><i class="fas fa-check-circle"></i> 備份完成</h3>
+                        <button class="modal-close" onclick="closeBackupSuccess()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="backup-success-info">
+                            <div class="success-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <div class="success-details">
+                                <h4>備份已成功上傳到 ${destination.toUpperCase()}</h4>
+                                <div class="backup-stats">
+                                    <div class="stat-item">
+                                        <i class="fas fa-file-alt"></i>
+                                        <span>備份名稱: ${backupName}</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <i class="fas fa-project-diagram"></i>
+                                        <span>Workflows: ${workflowCount} 個</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <i class="fas fa-key"></i>
+                                        <span>Credentials: ${credentialCount} 個</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <i class="fas fa-calendar"></i>
+                                        <span>時間: ${new Date().toLocaleString('zh-TW')}</span>
+                                    </div>
+                                </div>
+                                ${result.url ? `
+                                    <div class="backup-link">
+                                        <a href="${result.url}" target="_blank" class="btn btn-outline">
+                                            <i class="fas fa-external-link-alt"></i>
+                                            查看備份文件
+                                        </a>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" onclick="closeBackupSuccess()">確定</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+
+        // 關閉備份成功模態框
+        function closeBackupSuccess() {
+            const modal = document.querySelector('.backup-success-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        // 智能備份建議
+        function showSmartBackupSuggestion() {
+            const modal = document.createElement('div');
+            modal.className = 'smart-suggestion-modal';
+            modal.innerHTML = `
+                <div class="modal-overlay" onclick="closeSmartSuggestion()"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3><i class="fas fa-lightbulb"></i> 智能備份建議</h3>
+                        <button class="modal-close" onclick="closeSmartSuggestion()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="suggestion-content">
+                            <p>您還沒有選擇任何項目進行備份。以下是一些建議：</p>
+                            <div class="suggestions">
+                                <div class="suggestion-item" onclick="selectActiveWorkflows()">
+                                    <i class="fas fa-play-circle"></i>
+                                    <div>
+                                        <strong>備份所有啟用的 Workflows</strong>
+                                        <small>選擇所有正在運行的 workflows 及其相關憑證</small>
+                                    </div>
+                                </div>
+                                <div class="suggestion-item" onclick="selectAllItems()">
+                                    <i class="fas fa-globe"></i>
+                                    <div>
+                                        <strong>完整備份</strong>
+                                        <small>備份所有 workflows 和 credentials</small>
+                                    </div>
+                                </div>
+                                <div class="suggestion-item" onclick="selectRecentWorkflows()">
+                                    <i class="fas fa-clock"></i>
+                                    <div>
+                                        <strong>備份最近修改的項目</strong>
+                                        <small>選擇最近更新的 workflows</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-outline" onclick="closeSmartSuggestion()">手動選擇</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+
+        // 關閉智能建議模態框
+        function closeSmartSuggestion() {
+            const modal = document.querySelector('.smart-suggestion-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        // 選擇啟用的 workflows
+        function selectActiveWorkflows() {
+            const activeWorkflows = document.querySelectorAll('input[data-type="workflow"]');
+            activeWorkflows.forEach(checkbox => {
+                // 這裡可以根據 workflow 的狀態來判斷是否啟用
+                // 暫時選擇前幾個作為示例
+                checkbox.checked = true;
+                handleWorkflowSelection(checkbox);
+            });
+            closeSmartSuggestion();
+            showNotification('已選擇啟用的 workflows', 'info');
+        }
+
+        // 選擇所有項目
+        function selectAllItems() {
+            selectAllWorkflows(true);
+            selectAllCredentials(true);
+            closeSmartSuggestion();
+            showNotification('已選擇所有項目', 'info');
+        }
+
+        // 選擇最近的 workflows（示例實現）
+        function selectRecentWorkflows() {
+            const workflowCheckboxes = document.querySelectorAll('input[data-type="workflow"]');
+            // 選擇前5個作為"最近的"
+            Array.from(workflowCheckboxes).slice(0, 5).forEach(checkbox => {
+                checkbox.checked = true;
+                handleWorkflowSelection(checkbox);
+            });
+            closeSmartSuggestion();
+            showNotification('已選擇最近修改的 workflows', 'info');
         }
 
         // 全局變量

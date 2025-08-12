@@ -114,10 +114,35 @@ router.get('/credentials', async (req, res) => {
       }
     });
     
-    const credentials = Array.from(credentialMap.values());
-    console.log(`Extracted ${credentials.length} unique credentials`);
+    // 嘗試獲取完整的憑證數據
+    const credentialsWithData = [];
+    for (const [credId, credInfo] of credentialMap) {
+      try {
+        // 嘗試獲取完整的憑證數據
+        const credResponse = await n8nApi.get(`/api/v1/credentials/${credId}`);
+        const fullCredential = credResponse.data;
+        
+        credentialsWithData.push({
+          ...credInfo,
+          data: fullCredential.data || {},
+          nodesAccess: fullCredential.nodesAccess || []
+        });
+        
+        console.log(`✅ 獲取憑證數據成功: ${credInfo.name}`);
+      } catch (error) {
+        // 如果無法獲取完整數據，使用基本信息
+        console.warn(`⚠️  無法獲取憑證 ${credInfo.name} 的完整數據:`, error.message);
+        credentialsWithData.push({
+          ...credInfo,
+          data: {},
+          dataAvailable: false
+        });
+      }
+    }
     
-    res.json(credentials);
+    console.log(`Extracted ${credentialsWithData.length} unique credentials`);
+    
+    res.json(credentialsWithData);
   } catch (error) {
     console.error('Error fetching credentials:', error.message);
     res.json([]);
@@ -290,6 +315,98 @@ async function getCredentialsByIds(credentialIds) {
   
   return credentials;
 }
+
+// 獲取所有 N8N 數據（workflows 和 credentials）
+router.get('/data', async (req, res) => {
+  try {
+    const envId = req.query.env || 'default';
+    const n8nApi = createN8nApi(envId);
+    
+    console.log(`Fetching N8N data for environment: ${envId}`);
+    
+    // 獲取 workflows
+    const workflowsResponse = await n8nApi.get('/api/v1/workflows');
+    const workflows = workflowsResponse.data.data || workflowsResponse.data || [];
+    
+    console.log(`Found ${workflows.length} workflows`);
+    
+    // 為每個 workflow 添加相關的 credentials 信息
+    const workflowsWithCredentials = workflows.map((workflow) => {
+      const credentialIds = extractCredentialIds(workflow);
+      const credentialDetails = extractCredentialDetails(workflow);
+      
+      return {
+        ...workflow,
+        relatedCredentialIds: credentialIds,
+        relatedCredentials: credentialDetails
+      };
+    });
+    
+    // 獲取 credentials
+    const credentialMap = new Map();
+    
+    // 從所有 workflows 中提取 credential 信息
+    workflows.forEach(workflow => {
+      if (workflow.nodes) {
+        workflow.nodes.forEach(node => {
+          if (node.credentials) {
+            Object.entries(node.credentials).forEach(([credType, credInfo]) => {
+              if (credInfo.id && credInfo.name) {
+                const existing = credentialMap.get(credInfo.id);
+                credentialMap.set(credInfo.id, {
+                  id: credInfo.id,
+                  name: credInfo.name,
+                  type: credType,
+                  usedInWorkflows: existing ? existing.usedInWorkflows + 1 : 1
+                });
+              }
+            });
+          }
+        });
+      }
+    });
+    
+    // 嘗試獲取完整的憑證數據
+    const credentialsWithData = [];
+    for (const [credId, credInfo] of credentialMap) {
+      try {
+        // 嘗試獲取完整的憑證數據
+        const credResponse = await n8nApi.get(`/api/v1/credentials/${credId}`);
+        const fullCredential = credResponse.data;
+        
+        credentialsWithData.push({
+          ...credInfo,
+          data: fullCredential.data || {},
+          nodesAccess: fullCredential.nodesAccess || []
+        });
+        
+        console.log(`✅ 獲取憑證數據成功: ${credInfo.name} (${credInfo.type})`);
+      } catch (error) {
+        // 如果無法獲取完整數據，使用基本信息
+        console.warn(`⚠️  無法獲取憑證 ${credInfo.name} 的完整數據:`, error.message);
+        credentialsWithData.push({
+          ...credInfo,
+          data: {},
+          dataAvailable: false
+        });
+      }
+    }
+    
+    console.log(`Extracted ${credentialsWithData.length} unique credentials with data`);
+    
+    res.json({
+      workflows: workflowsWithCredentials,
+      credentials: credentialsWithData
+    });
+    
+  } catch (error) {
+    console.error('Error fetching N8N data:', error.message);
+    res.status(500).json({ 
+      error: 'Failed to fetch N8N data',
+      details: error.message 
+    });
+  }
+});
 
 // 測試 N8N 環境連接
 router.post('/test-connection', async (req, res) => {
